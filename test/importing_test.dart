@@ -8,6 +8,57 @@ import 'package:equipment_manager/data/database.dart';
 import 'package:equipment_manager/ui/controller.dart';
 
 void main() {
+  test('Ghép phụ lục giữ tên chi tiết, mã thiết bị và lịch sử đã có', () async {
+    final db = AppDatabase.memory();
+    final repo = EquipmentRepository(db);
+    final c = AppController(repo);
+    try {
+      final e = Equipment(name: 'Xe thử Model ABC123', note: 'Ghi chú ban đầu');
+      await repo.saveEquipment(e);
+      final i = DeadlineItem(
+        equipmentId: e.id,
+        kind: ItemKind.maintenance,
+        title: 'Bảo dưỡng',
+      );
+      await repo.saveItem(i);
+      final log = HistoryLog(
+        itemId: i.id,
+        doneDate: DateTime(2026, 1, 1),
+        provider: 'Đơn vị thử',
+      );
+      await repo.recordCompletion(i, log);
+      await c.load();
+      final metadata = Equipment(
+        name: 'Xe thử',
+        controlPlate: 'CAH-99-999',
+        country: 'Việt Nam',
+        yearMade: 2026,
+      );
+      final p = ImportPlan();
+      p.records.add(
+        ImportRecord(
+          source: 'Phụ lục giả lập',
+          row: 2,
+          equipment: metadata,
+          items: [],
+          metadataOnly: true,
+          suppliedFields: {'name', 'controlPlate', 'country', 'yearMade'},
+          targetId: e.id,
+          approved: true,
+        ),
+      );
+      await c.importPlan(p, confirmPast: true);
+      final merged = (await repo.equipment()).single;
+      expect(merged.id, e.id);
+      expect(merged.name, e.name);
+      expect(merged.controlPlate, 'CAH-99-999');
+      expect(merged.note, contains('Tên trong phụ lục: Xe thử'));
+      expect((await repo.history()).single.toJson(), log.toJson());
+    } finally {
+      c.dispose();
+      await db.close();
+    }
+  });
   final today = DateTime(2026, 11, 8);
   test('Giá trị đặc biệt bảo hiểm, kiểm định và hạn theo tháng', () {
     expect(

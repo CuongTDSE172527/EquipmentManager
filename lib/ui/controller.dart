@@ -64,11 +64,16 @@ class AppController extends ChangeNotifier {
         final merged = old == null
             ? record.equipment
             : old.copy({
-                for (final f in record.suppliedFields) f: json[f],
-                if (record.suppliedFields.contains('note'))
+                for (final f in record.suppliedFields)
+                  if (!(record.metadataOnly && f == 'name')) f: json[f],
+                if (record.suppliedFields.contains('note') ||
+                    (record.metadataOnly && old.name != record.equipment.name))
                   'note': [
                     old.note,
                     record.equipment.note,
+                    if (record.metadataOnly &&
+                        old.name != record.equipment.name)
+                      'Tên trong phụ lục: ${record.equipment.name}',
                   ].where((v) => v.isNotEmpty).toSet().join('\n'),
               });
         await repository.saveEquipment(merged);
