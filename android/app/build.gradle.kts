@@ -1,14 +1,18 @@
+import java.util.Properties
+import com.android.build.api.dsl.ApplicationExtension
+
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val signingProperties = java.util.Properties()
+val signingProperties = Properties()
 val signingFile = rootProject.file("key.properties")
 if (signingFile.exists()) signingFile.inputStream().use { signingProperties.load(it) }
 
-android {
+extensions.configure<ApplicationExtension> {
     namespace = "vn.cah.equipment_manager"
     compileSdk = 37
     ndkVersion = flutter.ndkVersion

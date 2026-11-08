@@ -6,10 +6,10 @@ import 'package:equipment_manager/domain/importing.dart';
 
 /// Local, read-only source inspection. Input and outputs are git-ignored.
 void main(List<String> args) {
-  if (args.length != 1) {
+  if (args.isEmpty || args.length > 2) {
     throw ArgumentError('Truyền đường dẫn source-rows.json cục bộ.');
   }
-  final data = jsonDecode(File(args.single).readAsStringSync()) as List;
+  final data = jsonDecode(File(args.first).readAsStringSync()) as List;
   final book = Excel.createExcel();
   final plan = ImportPlan();
   for (final source in data) {
@@ -32,8 +32,13 @@ void main(List<String> args) {
     );
   }
   book.delete('Sheet1');
-  File('private/nguon-chua-xac-nhan.xlsx').writeAsBytesSync(book.encode()!);
-  File('private/kiem-tra-nguon.json').writeAsStringSync(
+  final output = args.length == 2
+      ? args[1]
+      : 'private/nguon-chua-xac-nhan.xlsx';
+  File(output).writeAsBytesSync(book.encode()!);
+  File(
+    output.replaceFirst(RegExp(r'\.xlsx$'), '.report.json'),
+  ).writeAsStringSync(
     const JsonEncoder.withIndent('  ').convert(plan.report()),
   );
   stdout.writeln(
