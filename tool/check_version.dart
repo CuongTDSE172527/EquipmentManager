@@ -1,7 +1,12 @@
 import 'dart:io';
 
 void main(List<String> args) {
-  final raw = args.single;
+  if (args.isEmpty || args.length > 2) {
+    throw ArgumentError(
+      'Truyền phiên bản và tùy chọn file danh sách tag đã phát hành.',
+    );
+  }
+  final raw = args.first;
   final match = RegExp(
     r'^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$',
   ).firstMatch(raw);
@@ -19,6 +24,23 @@ void main(List<String> args) {
     throw const FormatException('versionCode vượt giới hạn Android.');
   }
   final version = '$major.$minor.$patch';
+  if (args.length == 2) {
+    for (final tag in File(args[1]).readAsLinesSync()) {
+      final previous = RegExp(
+        r'^v?(\d+)\.(\d+)\.(\d+)$',
+      ).firstMatch(tag.trim());
+      if (previous == null) continue;
+      final previousCode =
+          int.parse(previous[1]!) * 1000000 +
+          int.parse(previous[2]!) * 1000 +
+          int.parse(previous[3]!);
+      if (code <= previousCode) {
+        throw FormatException(
+          'Phiên bản $version phải lớn hơn bản đã phát hành $tag.',
+        );
+      }
+    }
+  }
   final output = Platform.environment['GITHUB_OUTPUT'];
   if (output != null) {
     File(output).writeAsStringSync(

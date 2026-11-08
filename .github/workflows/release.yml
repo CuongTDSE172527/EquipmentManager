@@ -35,7 +35,15 @@ jobs:
       - id: version
         env:
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
-        run: dart run tool/check_version.dart "$TAG"
+          GH_TOKEN: ${{ github.token }}
+          ENFORCE_PROGRESS: ${{ github.ref_type == 'tag' || inputs.publish }}
+        run: |
+          if [ "$ENFORCE_PROGRESS" = "true" ]; then
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.draft == false) | .tag_name' > prior-releases.txt
+            dart run tool/check_version.dart "$TAG" prior-releases.txt
+          else
+            dart run tool/check_version.dart "$TAG"
+          fi
       - run: dart format --output=none --set-exit-if-changed lib test tool integration_test
       - run: flutter analyze --fatal-infos
       - run: flutter test --coverage
@@ -152,4 +160,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.checks.outputs.version }}
         run: |
-          gh release create "v$VERSION" dist/*.apk dist/*.exe dist/*.zip dist/*.xlsx --title "EquipmentManager $VERSION" --generate-notes --target "$GITHUB_SHA"
+          flags=()
+          if [[ "$VERSION" == 0.* ]]; then flags+=(--prerelease); fi
+          gh release create "v$VERSION" dist/*.apk dist/*.exe dist/*.zip dist/*.xlsx --title "EquipmentManager $VERSION" --generate-notes --target "$GITHUB_SHA" "${flags[@]}"

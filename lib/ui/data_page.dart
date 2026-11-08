@@ -155,7 +155,7 @@ class _DataPageState extends State<DataPage> {
       ),
       _action(
         'Phụ lục cấp biển kiểm soát',
-        'Đúng 9 cột của phụ lục quyết định, lấy tên cơ quan từ Cài đặt.',
+        'Thiết bị đã có biển kiểm soát nội bộ; đúng 9 cột, lấy tên cơ quan từ Cài đặt.',
         Icons.article_outlined,
         () => _run(() async {
           await saveBytes(

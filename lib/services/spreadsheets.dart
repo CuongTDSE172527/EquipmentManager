@@ -150,6 +150,31 @@ class SpreadsheetService {
           ),
         );
       }
+      final values = sheet.rows[r];
+      final mergedTitle =
+          r < header || values.skip(1).every((c) => c?.value == null);
+      var lines = 1;
+      for (var c = 0; c < columns; c++) {
+        final text = c < values.length
+            ? values[c]?.value?.toString() ?? ''
+            : '';
+        final width = mergedTitle
+            ? columns * 22
+            : (c == 0
+                  ? 7
+                  : c == 1
+                  ? 32
+                  : 22);
+        final needed = text
+            .split('\n')
+            .fold<int>(
+              0,
+              (sum, line) =>
+                  sum + (line.length / width * 1.15).ceil().clamp(1, 1000),
+            );
+        if (needed > lines) lines = needed;
+      }
+      sheet.setRowHeight(r, lines * 16.0 + 10);
     }
     for (var c = 0; c < columns; c++) {
       sheet.setColumnWidth(
@@ -175,7 +200,7 @@ class SpreadsheetService {
     }
   }
 
-  Uint8List _finish(Excel book) {
+  Uint8List _finish(Excel book, {int repeatRows = 1}) {
     if (book.tables.length > 1) book.delete('Sheet1');
     final bytes = book.encode()!;
     final input = ZipDecoder().decodeBytes(bytes);
@@ -231,6 +256,43 @@ class SpreadsheetService {
         );
         final content = utf8.encode(doc.toXmlString());
         output.addFile(ArchiveFile(file.name, content.length, content));
+      } else if (file.name == 'xl/workbook.xml') {
+        final doc = XmlDocument.parse(utf8.decode(file.content as List<int>));
+        final root = doc.rootElement;
+        var definitions = root.findElements('definedNames').firstOrNull;
+        if (definitions == null) {
+          definitions = XmlElement(XmlName('definedNames'));
+          final calc = root.children.indexWhere(
+            (n) => n is XmlElement && n.name.local == 'calcPr',
+          );
+          if (calc < 0) {
+            root.children.add(definitions);
+          } else {
+            root.children.insert(calc, definitions);
+          }
+        }
+        final sheets = root
+            .findElements('sheets')
+            .single
+            .findElements('sheet')
+            .toList();
+        for (var index = 0; index < sheets.length; index++) {
+          final name = sheets[index]
+              .getAttribute('name')!
+              .replaceAll("'", "''");
+          definitions.children.add(
+            XmlElement(
+              XmlName('definedName'),
+              [
+                XmlAttribute(XmlName('name'), '_xlnm.Print_Titles'),
+                XmlAttribute(XmlName('localSheetId'), '$index'),
+              ],
+              [XmlText("'$name'!\$1:\$$repeatRows")],
+            ),
+          );
+        }
+        final content = utf8.encode(doc.toXmlString());
+        output.addFile(ArchiveFile(file.name, content.length, content));
       } else {
         output.addFile(file);
       }
@@ -267,7 +329,14 @@ class SpreadsheetService {
   String _due(DeadlineItem? item) {
     if (item == null) return 'Không áp dụng';
     if (item.isDone) return 'Đã xong';
-    if (item.requiresConfirmation) return 'Cần xác nhận';
+    if (item.requiresConfirmation) {
+      final label = item.dueDate != null
+          ? displayDate(item.dueDate, item.precision)
+          : item.expiredWithoutDate
+          ? 'Đã hết'
+          : item.insuranceMode.label;
+      return '$label (Cần xác nhận)';
+    }
     if (item.kind == ItemKind.insurance &&
         item.insuranceMode != InsuranceMode.dated) {
       return item.insuranceMode.label;
@@ -308,7 +377,34 @@ class SpreadsheetService {
       7,
     );
     _row(sheet, trackingColumns);
-    final groups = equipment.map((e) => e.group).toSet().toList()..sort();
+    final groups = equipment.map((e) => e.group).toSet().toList()
+      ..sort((a, b) {
+        int order(String name) {
+          final match = RegExp(r'^([IVXLCDM]+)[.\s]').firstMatch(name);
+          if (match == null) return 1000000;
+          final roman = match[1]!;
+          const values = {
+            'I': 1,
+            'V': 5,
+            'X': 10,
+            'L': 50,
+            'C': 100,
+            'D': 500,
+            'M': 1000,
+          };
+          var result = 0;
+          for (var n = 0; n < roman.length; n++) {
+            final value = values[roman[n]]!;
+            result += n + 1 < roman.length && value < values[roman[n + 1]]!
+                ? -value
+                : value;
+          }
+          return result;
+        }
+
+        final n = order(a).compareTo(order(b));
+        return n == 0 ? a.compareTo(b) : n;
+      });
     var index = 0;
     for (var g = 0; g < groups.length; g++) {
       final group = groups[g];
@@ -340,7 +436,7 @@ class SpreadsheetService {
     }
     _style(sheet, 3, 7);
     sheet.setColumnWidth(6, 44);
-    return _finish(book);
+    return _finish(book, repeatRows: 4);
   }
 
   Uint8List appendixReport(List<Equipment> equipment, AppSettings settings) {
@@ -354,7 +450,7 @@ class SpreadsheetService {
     );
     _row(sheet, appendixColumns);
     var index = 0;
-    for (final e in equipment) {
+    for (final e in equipment.where((e) => e.controlPlate.isNotEmpty)) {
       _row(sheet, [
         ++index,
         e.name,
@@ -368,7 +464,7 @@ class SpreadsheetService {
       ]);
     }
     _style(sheet, 3, 9);
-    return _finish(book);
+    return _finish(book, repeatRows: 4);
   }
 
   Uint8List itemsReport(
@@ -441,7 +537,17 @@ class SpreadsheetService {
       ]);
     }
     _style(logSheet, 3, 9);
-    return _finish(book);
+    for (var row = 4; row < logSheet.maxRows; row++) {
+      final cell = logSheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row),
+      );
+      if (cell.value is IntCellValue) {
+        cell.cellStyle = cell.cellStyle!.copyWith(
+          numberFormat: NumFormat.custom(formatCode: '#,##0 "VND"'),
+        );
+      }
+    }
+    return _finish(book, repeatRows: 4);
   }
 }
 

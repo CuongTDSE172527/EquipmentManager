@@ -902,7 +902,7 @@ class _AppState extends State<EquipmentManagerApp> {
   );
   Widget _deadlineTable(BuildContext context, List<TrackedDeadline> rows) {
     final sorted = [...rows];
-    if (sortColumn != 0 && !byProvider) {
+    if (!byProvider) {
       sorted.sort((a, b) {
         final value = switch (sortColumn) {
           1 => a.equipment.name.compareTo(b.equipment.name),
@@ -912,8 +912,13 @@ class _AppState extends State<EquipmentManagerApp> {
             effectiveDue(b.item) ?? DateTime(9999),
           ),
           5 => a.item.provider.compareTo(b.item.provider),
-          _ => 0,
+          _ => a.status.index.compareTo(b.status.index),
         };
+        if (value == 0) {
+          return (effectiveDue(a.item) ?? DateTime(9999)).compareTo(
+            effectiveDue(b.item) ?? DateTime(9999),
+          );
+        }
         return ascending ? value : -value;
       });
     }

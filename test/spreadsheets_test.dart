@@ -67,14 +67,24 @@ void main() {
       expect(xml, contains('orientation="landscape"'));
       expect(xml, contains('fitToWidth="1"'));
       expect(xml, contains('fitToHeight="0"'));
+      final workbookXml = utf8.decode(
+        zip.files.firstWhere((f) => f.name == 'xl/workbook.xml').content
+            as List<int>,
+      );
+      expect(workbookXml, contains('_xlnm.Print_Titles'));
+      expect(workbookXml, contains(r'$1:$4'));
     },
   );
   test('Phụ lục đúng 9 cột; báo cáo hạng mục có sheet lịch sử', () {
     final sheet = Excel.decodeBytes(
-      service.appendixReport([e], const AppSettings()),
+      service.appendixReport([
+        e,
+        Equipment(name: 'Chưa cấp biển'),
+      ], const AppSettings()),
     )['Phụ lục'];
     expect(sheet.rows[3].length, 9);
     expect(sheet.rows.last[6]!.value.toString(), 'CAH-01-999');
+    expect(sheet.rows.length, 5);
     final book = Excel.decodeBytes(
       service.itemsReport(
         trackedDeadlines([e], [i], const AppSettings(), DateTime(2026)),
@@ -84,4 +94,26 @@ void main() {
     );
     expect(book.tables.keys, containsAll(['Hạng mục', 'Lịch sử']));
   });
+  test(
+    'Báo cáo giữ hạn gốc cần xác nhận và đặt nhóm I/II trước nhóm chưa phân',
+    () {
+      final first = e.copy({'group': 'I. Phục vụ bay'});
+      final ungrouped = Equipment(
+        name: 'Chưa phân nhóm',
+        group: 'Chưa phân nhóm',
+      );
+      final sheet = Excel.decodeBytes(
+        service.trackingReport(
+          [ungrouped, first],
+          [
+            i.copy({'requiresConfirmation': true}),
+          ],
+          const AppSettings(),
+        ),
+      )['Theo dõi'];
+      expect(sheet.rows[4][0]!.value.toString(), 'I. Phục vụ bay');
+      expect(sheet.rows[5][5]!.value.toString(), '05/2026 (Cần xác nhận)');
+      expect(sheet.rows[6][0]!.value.toString(), 'II. Chưa phân nhóm');
+    },
+  );
 }
