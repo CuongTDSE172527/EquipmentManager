@@ -6,7 +6,7 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 api=$(adb shell getprop ro.build.version.sdk | tr -d '\r')
 if [ "$api" -ge 33 ]; then adb shell pm grant "$package" android.permission.POST_NOTIFICATIONS; fi
 if [ "$api" -ge 31 ]; then adb shell appops set "$package" SCHEDULE_EXACT_ALARM allow; fi
-adb logcat -c
+adb logcat -c || true
 adb shell am start -W -n "$package/.MainActivity"
 ready=0
 for attempt in $(seq 1 35); do
