@@ -1,0 +1,8 @@
+{
+  "folders": [{ "name": "EquipmentManager", "path": "." }],
+  "settings": {
+    "dart.flutterSdkPath": "../.tooling/flutter",
+    "files.exclude": { "**/.dart_tool": true, "**/build": true },
+    "search.exclude": { "**/.dart_tool": true, "**/build": true, "**/private": true }
+  }
+}

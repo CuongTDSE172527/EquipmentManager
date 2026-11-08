@@ -1,0 +1,34 @@
+name: equipment_manager
+description: Quản lý trang thiết bị và nhắc hạn ngoại tuyến.
+publish_to: none
+version: 0.1.0+1
+environment:
+  sdk: '>=3.11.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  drift: ^2.35.3
+  sqlite3: ^3.1.0
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  intl: any
+  file_picker: ^10.3.10
+  excel: ^4.0.6
+  csv: ^6.0.0
+  archive: ^3.6.1
+  xml: ^6.6.1
+  flutter_local_notifications: ^23.0.0
+  timezone: ^0.11.0
+  flutter_timezone: ^5.0.1
+  package_info_plus: ^9.0.0
+  uuid: ^4.5.2
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/templates/
