@@ -12,12 +12,22 @@ import 'forms.dart';
 import 'data_page.dart';
 import 'settings_page.dart';
 
-Color statusColor(DeadlineStatus s) => switch (s) {
-  DeadlineStatus.overdue => const Color(0xFFB42318),
-  DeadlineStatus.upcoming => const Color(0xFF996300),
-  DeadlineStatus.valid => const Color(0xFF157347),
-  _ => const Color(0xFF667085),
-};
+Color statusColor(
+  DeadlineStatus s, [
+  Brightness brightness = Brightness.light,
+]) => brightness == Brightness.dark
+    ? switch (s) {
+        DeadlineStatus.overdue => const Color(0xFFFF948B),
+        DeadlineStatus.upcoming => const Color(0xFFFFD166),
+        DeadlineStatus.valid => const Color(0xFF7FDFAB),
+        _ => const Color(0xFFBEC7D6),
+      }
+    : switch (s) {
+        DeadlineStatus.overdue => const Color(0xFFB42318),
+        DeadlineStatus.upcoming => const Color(0xFF996300),
+        DeadlineStatus.valid => const Color(0xFF157347),
+        _ => const Color(0xFF667085),
+      };
 
 class StatusChip extends StatelessWidget {
   const StatusChip(this.status, {super.key});
@@ -26,13 +36,16 @@ class StatusChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     decoration: BoxDecoration(
-      color: statusColor(status).withValues(alpha: .12),
+      color: statusColor(
+        status,
+        Theme.of(context).brightness,
+      ).withValues(alpha: .12),
       borderRadius: BorderRadius.circular(8),
     ),
     child: Text(
       status.label,
       style: TextStyle(
-        color: statusColor(status),
+        color: statusColor(status, Theme.of(context).brightness),
         fontWeight: FontWeight.w600,
         fontSize: 13,
       ),
@@ -547,7 +560,10 @@ class _AppState extends State<EquipmentManagerApp> {
                                     : s == DeadlineStatus.valid
                                     ? Icons.check_circle_outline
                                     : Icons.help_outline,
-                                color: statusColor(s),
+                                color: statusColor(
+                                  s,
+                                  Theme.of(context).brightness,
+                                ),
                               ),
                               const SizedBox(height: 16),
                               Text(
@@ -555,7 +571,10 @@ class _AppState extends State<EquipmentManagerApp> {
                                 style: TextStyle(
                                   fontSize: 32,
                                   fontWeight: FontWeight.bold,
-                                  color: statusColor(s),
+                                  color: statusColor(
+                                    s,
+                                    Theme.of(context).brightness,
+                                  ),
                                 ),
                               ),
                               Text(s.label),

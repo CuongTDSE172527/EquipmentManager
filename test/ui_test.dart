@@ -85,6 +85,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('200 hạng mục'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      await repo.saveSettings(c.settings.copy({'theme': 'dark'}));
+      await c.load();
+      await tester.pumpAndSettle();
+      expect(
+        Theme.of(tester.element(find.byType(Scaffold).first)).brightness,
+        Brightness.dark,
+      );
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       c.dispose();
       await db.close();
