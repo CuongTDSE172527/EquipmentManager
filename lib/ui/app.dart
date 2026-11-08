@@ -99,9 +99,21 @@ class _AppState extends State<EquipmentManagerApp> {
     }
   }
 
+  void _resetFilters() {
+    search.clear();
+    group = null;
+    provider = null;
+    kind = null;
+    status = null;
+    management = ManagementStatus.active;
+    alertsOnly = false;
+    byProvider = false;
+  }
+
   void _openAlerts() {
     if (mounted) {
       setState(() {
+        _resetFilters();
         page = 1;
         alertsOnly = true;
         status = null;
@@ -542,6 +554,7 @@ class _AppState extends State<EquipmentManagerApp> {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(14),
                         onTap: () => setState(() {
+                          _resetFilters();
                           page = 1;
                           status = s;
                           alertsOnly = false;
@@ -589,7 +602,10 @@ class _AppState extends State<EquipmentManagerApp> {
                   child: Card(
                     margin: EdgeInsets.zero,
                     child: InkWell(
-                      onTap: () => setState(() => page = 2),
+                      onTap: () => setState(() {
+                        _resetFilters();
+                        page = 2;
+                      }),
                       child: Padding(
                         padding: const EdgeInsets.all(18),
                         child: Column(

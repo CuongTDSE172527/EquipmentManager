@@ -116,8 +116,8 @@ jobs:
       - name: Build Windows
         env:
           VERSION: ${{ needs.checks.outputs.version }}
-          CODE: ${{ needs.checks.outputs.code }}
-        run: flutter build windows --release --build-name="$env:VERSION" --build-number="$env:CODE"
+          BUILD_COUNTER: ${{ github.run_number }}
+        run: flutter build windows --release --build-name="$env:VERSION" --build-number="$env:BUILD_COUNTER"
       - name: Đóng gói thư viện chạy, ZIP và bộ cài
         env:
           VERSION: ${{ needs.checks.outputs.version }}

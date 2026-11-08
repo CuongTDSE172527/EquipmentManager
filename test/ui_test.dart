@@ -8,8 +8,12 @@ import 'package:equipment_manager/ui/controller.dart';
 import 'package:equipment_manager/ui/app.dart';
 
 class SilentNotifications extends NotificationService {
+  VoidCallback? open;
   @override
-  Future<void> initialize({VoidCallback? onOpen}) async {}
+  Future<void> initialize({VoidCallback? onOpen}) async {
+    if (onOpen != null) open = onOpen;
+  }
+
   @override
   Future<bool> launchedFromNotification() async => false;
 }
@@ -36,11 +40,9 @@ void main() {
         buildSignature: '',
       );
       await c.load();
+      final notifications = SilentNotifications();
       await tester.pumpWidget(
-        EquipmentManagerApp(
-          controller: c,
-          notifications: SilentNotifications(),
-        ),
+        EquipmentManagerApp(controller: c, notifications: notifications),
       );
       await tester.pumpAndSettle();
       if (size.width < 960) {
@@ -93,6 +95,19 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('200 hạng mục'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      await tester.enterText(
+        find.byType(TextField).first,
+        'từ khóa không có thiết bị nào',
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('0 hạng mục'), findsOneWidget);
+      notifications.open!();
+      await tester.pumpAndSettle();
+      expect(find.textContaining('200 hạng mục'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+        isEmpty,
+      );
       if (size.width < 960) {
         await tester.tap(find.text('Bộ lọc'));
         await tester.pumpAndSettle();

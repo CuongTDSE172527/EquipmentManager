@@ -34,8 +34,12 @@ Future<void> dailyReminder() async {
 }
 
 class NotificationService {
-  final plugin = FlutterLocalNotificationsPlugin();
+  NotificationService({FlutterLocalNotificationsPlugin? plugin})
+    : plugin = plugin ?? FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin plugin;
+  VoidCallback? _onOpen;
   Future<void> initialize({VoidCallback? onOpen}) async {
+    if (onOpen != null) _onOpen = onOpen;
     await plugin.initialize(
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('ic_notification'),
@@ -45,7 +49,7 @@ class NotificationService {
           guid: notificationGuid,
         ),
       ),
-      onDidReceiveNotificationResponse: (_) => onOpen?.call(),
+      onDidReceiveNotificationResponse: (_) => _onOpen?.call(),
     );
   }
 

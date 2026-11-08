@@ -205,6 +205,15 @@ void parseEquipmentRows(
   for (var n = header + 1; n < rows.length; n++) {
     if (rows[n].every((c) => c.trim().isEmpty)) continue;
     final first = rows[n].where((c) => c.trim().isNotEmpty).first.trim();
+    if (RegExp(r'^[IVXLCDM]+$').hasMatch(first)) {
+      final title = rows[n]
+          .skip(1)
+          .where((c) => c.trim().isNotEmpty)
+          .firstOrNull;
+      group = title == null ? first : '$first. ${title.trim()}';
+      numbering.clear();
+      continue;
+    }
     if (RegExp(r'^[IVXLCDM]+[.\s]').hasMatch(first) &&
         int.tryParse(first) == null) {
       group = first;

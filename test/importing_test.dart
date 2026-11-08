@@ -8,6 +8,28 @@ import 'package:equipment_manager/data/database.dart';
 import 'package:equipment_manager/ui/controller.dart';
 
 void main() {
+  test('Nhận tiêu đề nhóm I/II ở cột STT, cho đánh số lại trong mỗi nhóm', () {
+    final p = ImportPlan();
+    parseEquipmentRows(
+      p,
+      'Nguồn giả lập',
+      [
+        trackingColumns,
+        ['I', 'Phục vụ bay'],
+        ['1', 'Xe thử A', 'CAH-99-001', '', 'ACV mua', '', ''],
+        ['II', 'Khẩn nguy'],
+        ['1', 'Xe thử B', 'CAH-99-002', '', 'ACV mua', '', ''],
+      ],
+      metadataOnly: false,
+      today: DateTime(2026, 11, 9),
+    );
+    expect(p.readRows, 2);
+    expect(p.records.map((r) => r.equipment.group), [
+      'I. Phục vụ bay',
+      'II. Khẩn nguy',
+    ]);
+    expect(p.issues.any((i) => i.message.contains('Trùng STT')), false);
+  });
   test('Ghép phụ lục giữ tên chi tiết, mã thiết bị và lịch sử đã có', () async {
     final db = AppDatabase.memory();
     final repo = EquipmentRepository(db);

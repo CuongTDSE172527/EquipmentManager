@@ -64,7 +64,9 @@ git push origin v0.1.1
 
 Trong GitHub → Actions → **Phát hành EquipmentManager → Run workflow**, có thể nhập phiên bản để build thử; để **Tạo Release** tắt nếu chỉ muốn tải artifacts thử. Khi chạy bằng tag, phiên bản luôn lấy từ tag. APK release phải có khóa ký; thiếu Secrets thì job thất bại, không dùng khóa debug.
 
-`versionCode = major × 1.000.000 + minor × 1.000 + patch` (minor, patch tối đa 999). Luôn phát hành phiên bản tăng theo thứ tự số, không tái sử dụng tag cũ. Bản v0.1.0 có versionCode 1000, v0.1.1 là 1001. Build Windows lấy cùng versionName/buildNumber. Artifacts gồm APK đã ký, EXE cài đặt, ZIP đầy đủ và mẫu Excel. Ghi chú Release tự sinh từ commit/PR.
+`versionCode = major × 1.000.000 + minor × 1.000 + patch` (minor, patch tối đa 999). Luôn phát hành phiên bản tăng theo thứ tự số, không tái sử dụng tag cũ; workflow từ chối phiên bản không lớn hơn các Release đã có. Bản v0.1.0 có versionCode 1000, v0.1.1 là 1001. Windows dùng cùng versionName từ tag, số build dùng bộ đếm workflow để phù hợp trường phiên bản của Windows. Artifacts gồm APK đã ký, EXE cài đặt, ZIP đầy đủ và mẫu Excel. Ghi chú Release tự sinh từ commit/PR.
+
+Xuất bản yêu cầu tag đã có trên GitHub; thường chỉ cần push tag như trên. Nếu các job checks/android/windows đều thành công nhưng bước tạo Release gặp lỗi, có thể chạy **Hoàn tất phát hành từ artifacts đã kiểm tra** với ID lần chạy và phiên bản. Workflow này xác minh artifacts thuộc đúng SHA của tag và cả ba job bắt buộc đều qua trước khi xuất bản; không cần build lại hoặc cấp token cá nhân.
 
 ## Khóa ký Android và GitHub Secrets
 
