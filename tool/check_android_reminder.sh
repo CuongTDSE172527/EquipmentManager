@@ -20,7 +20,7 @@ adb shell am kill "$package"
 sleep 2
 remaining=$(adb shell pidof "$package" | tr -d '\r' || true)
 if [ -n "$remaining" ]; then
-  for pid in $remaining; do adb shell run-as "$package" kill -9 "$pid"; done
+  for pid in $remaining; do adb shell run-as "$package" kill -9 "$pid" || true; done
   sleep 1
   after=$(adb shell pidof "$package" | tr -d '\r' || true)
   if [ "$after" = "$remaining" ]; then echo 'Original process was not terminated'; exit 1; fi
