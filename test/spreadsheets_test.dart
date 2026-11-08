@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,50 @@ import 'package:equipment_manager/domain/models.dart';
 import 'package:equipment_manager/domain/deadlines.dart';
 
 void main() {
+  test('Ngày Excel hiển thị tháng/năm giữ độ chính xác tháng khi nhập', () {
+    for (final format in [
+      'mm/yyyy',
+      r'[$-vi-VN]mm/yyyy "deadline"',
+      'dd/mm/yyyy',
+    ]) {
+      final book = Excel.createExcel();
+      final sheet = book['Theo dõi'];
+      book.delete('Sheet1');
+      sheet.appendRow(trackingColumns.map(TextCellValue.new).toList());
+      sheet.appendRow(
+        [
+          '1',
+          'Xe thử',
+          'CAH-99-999',
+          '',
+          '',
+          '',
+          '',
+        ].map(TextCellValue.new).toList(),
+      );
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: 1),
+      );
+      cell.value = DateCellValue(year: 2026, month: 5, day: 1);
+      cell.cellStyle = CellStyle(
+        numberFormat: NumFormat.custom(formatCode: format),
+      );
+      final plan = readWorkbook(
+        Uint8List.fromList(book.encode()!),
+        'kiem-thu.xlsx',
+        today: DateTime(2026, 5, 15),
+      );
+      final item = plan.records.single.items.singleWhere(
+        (i) => i.kind == ItemKind.maintenance,
+      );
+      final dayFormat = format == 'dd/mm/yyyy';
+      expect(
+        item.precision,
+        dayFormat ? DatePrecision.day : DatePrecision.month,
+      );
+      expect(item.dueDate, DateTime(2026, 5, dayFormat ? 1 : 31));
+    }
+  });
   final service = SpreadsheetService();
   final e = Equipment(
     name: 'Thiết bị giả lập',

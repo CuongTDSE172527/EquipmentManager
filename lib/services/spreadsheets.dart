@@ -31,8 +31,21 @@ const appendixColumns = [
 
 String _cellText(Data? cell) {
   final v = cell?.value;
-  if (v is DateCellValue) return displayDate(v.asDateTimeLocal());
-  if (v is DateTimeCellValue) return displayDate(v.asDateTimeLocal());
+  if (v is DateCellValue || v is DateTimeCellValue) {
+    // Excel stores a complete date even when the user only enters a month.
+    // Ignore literals, locale directives and escaped characters in its format.
+    final format = (cell?.cellStyle?.numberFormat.formatCode ?? '')
+        .replaceAll(RegExp(r'"[^"]*"|\[[^\]]*\]|\\.'), '')
+        .toLowerCase();
+    final precision =
+        format.contains('m') && format.contains('y') && !format.contains('d')
+        ? DatePrecision.month
+        : DatePrecision.day;
+    final date = v is DateCellValue
+        ? v.asDateTimeLocal()
+        : (v as DateTimeCellValue).asDateTimeLocal();
+    return displayDate(date, precision);
+  }
   return v?.toString() ?? '';
 }
 
