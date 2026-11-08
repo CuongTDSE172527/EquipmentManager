@@ -1,0 +1,64 @@
+name: Hoàn tất phát hành từ artifacts đã kiểm tra
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: 'ID workflow release có checks, android, windows đều thành công'
+        required: true
+      version:
+        description: 'Phiên bản của tag đã tồn tại (ví dụ 0.1.0)'
+        required: true
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish-verified-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Xác minh artifacts thuộc đúng tag và các job bắt buộc đã qua
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" > source-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN/jobs?per_page=100" > source-jobs.json
+          python - <<'PY'
+          import json, os, subprocess
+          run = json.load(open('source-run.json'))
+          jobs = json.load(open('source-jobs.json'))['jobs']
+          sha = subprocess.check_output(['git', 'rev-parse', 'refs/tags/v'+os.environ['VERSION']], text=True).strip()
+          assert run['head_sha'] == sha, 'Artifacts do not match the release tag'
+          assert run['path'] == '.github/workflows/release.yml', 'Unexpected source workflow'
+          assert run['status'] == 'completed', 'Source run is not finished'
+          for name in ['checks', 'android', 'windows']:
+              match = [j for j in jobs if j['name'] == name]
+              assert len(match) == 1 and match[0]['conclusion'] == 'success', 'Required job failed: '+name
+          print('Verified checks + signed APK + Windows artifacts for tag v'+os.environ['VERSION'])
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.source_run }}
+          path: dist
+          merge-multiple: true
+      - name: Tạo Release từ đúng bộ tệp đã build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          test -s "dist/EquipmentManager-$VERSION.apk"
+          test -s "dist/EquipmentManager-$VERSION-windows-setup.exe"
+          test -s "dist/EquipmentManager-$VERSION-windows-portable.zip"
+          test -s "dist/EquipmentManager-mau-nhap.xlsx"
+          previous=$(git describe --tags --abbrev=0 "v$VERSION^" 2>/dev/null || true)
+          if [ -n "$previous" ]; then range="$previous..v$VERSION"; else range="v$VERSION"; fi
+          git log "$range" --pretty=format:'- %s (%h)' > release-notes.md
+          flags=()
+          if [[ "$VERSION" == 0.* ]]; then flags+=(--prerelease); fi
+          gh release create "v$VERSION" "dist/EquipmentManager-$VERSION.apk" "dist/EquipmentManager-$VERSION-windows-setup.exe" "dist/EquipmentManager-$VERSION-windows-portable.zip" dist/EquipmentManager-mau-nhap.xlsx --title "EquipmentManager $VERSION" --notes-file release-notes.md --verify-tag "${flags[@]}"

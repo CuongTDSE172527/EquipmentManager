@@ -162,4 +162,4 @@ jobs:
         run: |
           flags=()
           if [[ "$VERSION" == 0.* ]]; then flags+=(--prerelease); fi
-          gh release create "v$VERSION" dist/*.apk dist/*.exe dist/*.zip dist/*.xlsx --title "EquipmentManager $VERSION" --generate-notes --target "$GITHUB_SHA" "${flags[@]}"
+          gh release create "v$VERSION" dist/*.apk dist/*.exe dist/*.zip dist/*.xlsx --title "EquipmentManager $VERSION" --generate-notes --verify-tag "${flags[@]}"
