@@ -28,7 +28,10 @@ bool FlutterWindow::OnCreate() {
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+    // Task Scheduler invokes the same binary without opening a visible window.
+    if (wcsstr(GetCommandLineW(), L"--notify-only") == nullptr) {
+      this->Show();
+    }
   });
 
   // Flutter can complete the first frame before the "show window" callback is

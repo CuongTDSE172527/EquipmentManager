@@ -64,7 +64,11 @@ class AppDatabase extends GeneratedDatabase {
         ]);
       }
     },
-    beforeOpen: (_) async => customStatement('PRAGMA foreign_keys = ON'),
+    beforeOpen: (_) async {
+      await customStatement('PRAGMA foreign_keys = ON');
+      await customStatement('PRAGMA busy_timeout = 5000');
+      await customStatement('PRAGMA journal_mode = WAL');
+    },
   );
 }
 

@@ -23,6 +23,14 @@ int calendarDaysBetween(DateTime from, DateTime to) => DateTime.utc(
   to.day,
 ).difference(DateTime.utc(from.year, from.month, from.day)).inDays;
 
+bool hasPastDeadline(DeadlineItem item, DateTime today) {
+  final due = effectiveDue(item);
+  return item.expiredWithoutDate ||
+      (item.kind == ItemKind.insurance &&
+          item.insuranceMode == InsuranceMode.expired) ||
+      (due != null && calendarDaysBetween(today, due) < 0);
+}
+
 DeadlineStatus statusOf(
   DeadlineItem item,
   Equipment equipment,

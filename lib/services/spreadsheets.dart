@@ -1,0 +1,472 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:archive/archive.dart';
+import 'package:csv/csv.dart';
+import 'package:excel/excel.dart';
+import 'package:xml/xml.dart';
+import '../domain/models.dart';
+import '../domain/deadlines.dart';
+import '../domain/importing.dart';
+
+const trackingColumns = [
+  'STT',
+  'Tên phương tiện',
+  'Biển số',
+  'Hạn đăng kiểm',
+  'Hạn bảo hiểm',
+  'Bảo dưỡng tiếp theo',
+  'Ghi chú',
+];
+const appendixColumns = [
+  'STT',
+  'Tên phương tiện',
+  'Nước sản xuất',
+  'Năm sản xuất',
+  'Số khung',
+  'Số động cơ',
+  'Biển kiểm soát',
+  'Mục đích sử dụng',
+  'Hoạt động tại',
+];
+
+String _cellText(Data? cell) {
+  final v = cell?.value;
+  if (v is DateCellValue) return displayDate(v.asDateTimeLocal());
+  if (v is DateTimeCellValue) return displayDate(v.asDateTimeLocal());
+  return v?.toString() ?? '';
+}
+
+ImportPlan readWorkbook(
+  Uint8List bytes,
+  String filename, {
+  required DateTime today,
+}) {
+  if (bytes.length > 20 * 1024 * 1024) {
+    throw const FormatException('File nhập tối đa 20 MB.');
+  }
+  final plan = ImportPlan();
+  if (filename.toLowerCase().endsWith('.csv')) {
+    final text = utf8.decode(bytes).replaceFirst('\uFEFF', '');
+    final first = text.split(RegExp(r'\r?\n')).first;
+    final delimiter = first.split(';').length > first.split(',').length
+        ? ';'
+        : ',';
+    final rows = CsvToListConverter(
+      fieldDelimiter: delimiter,
+      shouldParseNumbers: false,
+      eol: text.contains('\r\n') ? '\r\n' : '\n',
+    ).convert(text).map((r) => r.map((c) => c.toString()).toList()).toList();
+    final metadata = rows
+        .take(10)
+        .expand((r) => r)
+        .any((c) => normalized(c) == 'sokhung');
+    parseEquipmentRows(
+      plan,
+      filename,
+      rows,
+      metadataOnly: metadata,
+      today: today,
+    );
+  } else if (filename.toLowerCase().endsWith('.xlsx')) {
+    // Limit decompressed input as well as compressed size (zip bomb protection).
+    final zip = ZipDecoder().decodeBytes(bytes, verify: true);
+    if (zip.files.fold<int>(0, (sum, f) => sum + f.size) > 80 * 1024 * 1024) {
+      throw const FormatException('Nội dung Excel quá lớn.');
+    }
+    final book = Excel.decodeBytes(bytes);
+    for (final entry in book.tables.entries) {
+      final rows = entry.value.rows
+          .map((r) => r.map(_cellText).toList())
+          .toList();
+      if (rows.every((r) => r.every((c) => c.trim().isEmpty))) continue;
+      if (normalized(entry.key) == 'huongdan') continue;
+      final metadata = rows
+          .take(12)
+          .expand((r) => r)
+          .any((c) => normalized(c) == 'sokhung');
+      parseEquipmentRows(
+        plan,
+        '$filename / ${entry.key}',
+        rows,
+        metadataOnly: metadata,
+        today: today,
+      );
+    }
+  } else {
+    throw const FormatException(
+      'Chỉ nhận Excel .xlsx hoặc CSV UTF-8. Hãy chuyển .doc/.docx sang mẫu Excel trước.',
+    );
+  }
+  return plan;
+}
+
+class SpreadsheetService {
+  Excel _book() => Excel.createExcel();
+  void _row(Sheet sheet, List<Object?> values) => sheet.appendRow(
+    values
+        .map<CellValue?>(
+          (v) => v == null
+              ? null
+              : v is int
+              ? IntCellValue(v)
+              : TextCellValue(v.toString()),
+        )
+        .toList(),
+  );
+
+  void _style(Sheet sheet, int header, int columns) {
+    for (var r = 0; r < sheet.maxRows; r++) {
+      for (var c = 0; c < columns; c++) {
+        final cell = sheet.cell(
+          CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r),
+        );
+        cell.cellStyle = CellStyle(
+          fontFamily: 'Times New Roman',
+          fontSize: r == 0 ? 14 : 12,
+          bold: r <= header,
+          verticalAlign: VerticalAlign.Center,
+          horizontalAlign: c == 0
+              ? HorizontalAlign.Center
+              : HorizontalAlign.Left,
+          textWrapping: TextWrapping.WrapText,
+          backgroundColorHex: ExcelColor.fromHexString(
+            r == header ? 'E2E8F0' : 'FFFFFF',
+          ),
+          leftBorder: Border(
+            borderStyle: BorderStyle.Thin,
+            borderColorHex: ExcelColor.fromHexString('D9D9D9'),
+          ),
+          rightBorder: Border(
+            borderStyle: BorderStyle.Thin,
+            borderColorHex: ExcelColor.fromHexString('D9D9D9'),
+          ),
+          topBorder: Border(
+            borderStyle: BorderStyle.Thin,
+            borderColorHex: ExcelColor.fromHexString('D9D9D9'),
+          ),
+          bottomBorder: Border(
+            borderStyle: BorderStyle.Thin,
+            borderColorHex: ExcelColor.fromHexString('D9D9D9'),
+          ),
+        );
+      }
+    }
+    for (var c = 0; c < columns; c++) {
+      sheet.setColumnWidth(
+        c,
+        c == 0
+            ? 7
+            : c == 1
+            ? 32
+            : 22,
+      );
+    }
+  }
+
+  void _title(Sheet sheet, AppSettings settings, String title, int columns) {
+    _row(sheet, [settings.agency]);
+    _row(sheet, [settings.team]);
+    _row(sheet, [title]);
+    for (var r = 0; r < 3; r++) {
+      sheet.merge(
+        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: r),
+        CellIndex.indexByColumnRow(columnIndex: columns - 1, rowIndex: r),
+      );
+    }
+  }
+
+  Uint8List _finish(Excel book) {
+    if (book.tables.length > 1) book.delete('Sheet1');
+    final bytes = book.encode()!;
+    final input = ZipDecoder().decodeBytes(bytes);
+    final output = Archive();
+    for (final file in input.files) {
+      if (file.name.startsWith('xl/worksheets/sheet') &&
+          file.name.endsWith('.xml')) {
+        final doc = XmlDocument.parse(utf8.decode(file.content as List<int>));
+        final root = doc.rootElement;
+        for (final name in [
+          'sheetPr',
+          'pageMargins',
+          'pageSetup',
+          'headerFooter',
+        ]) {
+          root.children.removeWhere(
+            (n) => n is XmlElement && n.name.local == name,
+          );
+        }
+        root.children.insert(
+          0,
+          XmlElement(XmlName('sheetPr'), [], [
+            XmlElement(XmlName('pageSetUpPr'), [
+              XmlAttribute(XmlName('fitToPage'), '1'),
+            ]),
+          ]),
+        );
+        root.children.add(
+          XmlElement(XmlName('pageMargins'), [
+            for (final e in {
+              'left': '0.3',
+              'right': '0.3',
+              'top': '0.5',
+              'bottom': '0.5',
+              'header': '0.2',
+              'footer': '0.2',
+            }.entries)
+              XmlAttribute(XmlName(e.key), e.value),
+          ]),
+        );
+        root.children.add(
+          XmlElement(XmlName('pageSetup'), [
+            XmlAttribute(XmlName('paperSize'), '9'),
+            XmlAttribute(XmlName('orientation'), 'landscape'),
+            XmlAttribute(XmlName('fitToWidth'), '1'),
+            XmlAttribute(XmlName('fitToHeight'), '0'),
+          ]),
+        );
+        root.children.add(
+          XmlElement(XmlName('headerFooter'), [], [
+            XmlElement(XmlName('oddFooter'), [], [XmlText('&CTrang &P / &N')]),
+          ]),
+        );
+        final content = utf8.encode(doc.toXmlString());
+        output.addFile(ArchiveFile(file.name, content.length, content));
+      } else {
+        output.addFile(file);
+      }
+    }
+    return Uint8List.fromList(ZipEncoder().encode(output)!);
+  }
+
+  Uint8List template() {
+    final book = _book();
+    final tracking = book['Theo dõi'];
+    _row(tracking, [...trackingColumns, 'Nhóm']);
+    _style(tracking, 0, 8);
+    final appendix = book['Phụ lục'];
+    _row(appendix, appendixColumns);
+    _style(appendix, 0, 9);
+    final guide = book['Hướng dẫn'];
+    for (final text in [
+      'Điền bảng Theo dõi, bảng Phụ lục hoặc cả hai. Giữ nguyên tên cột.',
+      'Ngày: dd/MM/yyyy hoặc MM/yyyy. Nhập ngày dưới dạng văn bản để giữ chính xác tháng.',
+      'Bảo hiểm: ngày hết hạn; ACV mua; Hết; Không áp dụng; hoặc để trống nếu chưa có thông tin.',
+      'Hạn đăng kiểm: ngày; Hết ĐK; Không áp dụng; hoặc để trống nếu chưa có thông tin.',
+      'Không áp dụng / dấu -: không tạo hạng mục. Ô trống: tạo hạng mục Cần cập nhật.',
+      'Tên, biển số, số khung, số động cơ phải là văn bản để không mất số 0 đầu.',
+      'Nhóm: điền cột Nhóm hoặc dòng tiêu đề I. Phục vụ bay / II. Khẩn nguy, văn phòng, khu bay.',
+      'Mọi ghép thiết bị đều phải chọn và xác nhận trong bản xem trước. STT không phải mã duy nhất.',
+      'Không tự chuyển CAH-10101 thành CAH-01-001. Giữ nguyên biển nguồn để đối chiếu.',
+    ]) {
+      _row(guide, [text]);
+    }
+    guide.setColumnWidth(0, 110);
+    return _finish(book);
+  }
+
+  String _due(DeadlineItem? item) {
+    if (item == null) return 'Không áp dụng';
+    if (item.isDone) return 'Đã xong';
+    if (item.requiresConfirmation) return 'Cần xác nhận';
+    if (item.kind == ItemKind.insurance &&
+        item.insuranceMode != InsuranceMode.dated) {
+      return item.insuranceMode.label;
+    }
+    if (item.expiredWithoutDate) return 'Hết ĐK';
+    return displayDate(item.dueDate, item.precision);
+  }
+
+  DeadlineItem? _first(
+    List<DeadlineItem> items,
+    String equipmentId,
+    ItemKind kind,
+  ) {
+    final matches = items
+        .where(
+          (i) => i.equipmentId == equipmentId && i.kind == kind && !i.isDone,
+        )
+        .toList();
+    matches.sort(
+      (a, b) => (effectiveDue(a) ?? DateTime(9999)).compareTo(
+        effectiveDue(b) ?? DateTime(9999),
+      ),
+    );
+    return matches.firstOrNull;
+  }
+
+  Uint8List trackingReport(
+    List<Equipment> equipment,
+    List<DeadlineItem> items,
+    AppSettings settings,
+  ) {
+    final book = _book();
+    final sheet = book['Theo dõi'];
+    _title(
+      sheet,
+      settings,
+      'BẢNG THEO DÕI KIỂM ĐỊNH, CÔNG TÁC BẢO DƯỠNG TRANG THIẾT BỊ',
+      7,
+    );
+    _row(sheet, trackingColumns);
+    final groups = equipment.map((e) => e.group).toSet().toList()..sort();
+    var index = 0;
+    for (var g = 0; g < groups.length; g++) {
+      final group = groups[g];
+      final title = group.replaceFirst(RegExp(r'^[IVXLCDM]+[.\s]+'), '');
+      _row(sheet, ['${_roman(g + 1)}. $title']);
+      sheet.merge(
+        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sheet.maxRows - 1),
+        CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: sheet.maxRows - 1),
+      );
+      final rows = equipment.where((e) => e.group == group).toList()
+        ..sort((a, b) => a.name.compareTo(b.name));
+      for (final e in rows) {
+        final lifespan = _first(items, e.id, ItemKind.lifespan);
+        _row(sheet, [
+          ++index,
+          e.name,
+          e.displayPlate,
+          _due(_first(items, e.id, ItemKind.inspection)),
+          _due(_first(items, e.id, ItemKind.insurance)),
+          _due(_first(items, e.id, ItemKind.maintenance)),
+          [
+            e.note,
+            if (e.managementStatus != ManagementStatus.active)
+              e.managementStatus.label,
+            if (lifespan != null) 'Niên hạn: ${_due(lifespan)}',
+          ].where((s) => s.isNotEmpty).join('; '),
+        ]);
+      }
+    }
+    _style(sheet, 3, 7);
+    sheet.setColumnWidth(6, 44);
+    return _finish(book);
+  }
+
+  Uint8List appendixReport(List<Equipment> equipment, AppSettings settings) {
+    final book = _book();
+    final sheet = book['Phụ lục'];
+    _title(
+      sheet,
+      settings,
+      'PHƯƠNG TIỆN, THIẾT BỊ CHUYÊN NGÀNH ĐƯỢC CẤP BIỂN KIỂM SOÁT',
+      9,
+    );
+    _row(sheet, appendixColumns);
+    var index = 0;
+    for (final e in equipment) {
+      _row(sheet, [
+        ++index,
+        e.name,
+        e.country,
+        e.yearMade,
+        e.chassisNo,
+        e.engineNo,
+        e.controlPlate,
+        e.purpose,
+        e.operatingAt,
+      ]);
+    }
+    _style(sheet, 3, 9);
+    return _finish(book);
+  }
+
+  Uint8List itemsReport(
+    List<TrackedDeadline> rows,
+    List<HistoryLog> history,
+    AppSettings settings,
+  ) {
+    final book = _book();
+    final sheet = book['Hạng mục'];
+    _title(sheet, settings, 'DANH SÁCH HẠNG MỤC THEO DÕI', 9);
+    _row(sheet, [
+      'Thiết bị',
+      'Biển số',
+      'Loại',
+      'Hạng mục',
+      'Hạn',
+      'Trạng thái',
+      'Đơn vị thực hiện',
+      'Chu kỳ (tháng)',
+      'Ghi chú',
+    ]);
+    final byProvider = [...rows]
+      ..sort((a, b) {
+        final p = a.item.provider.compareTo(b.item.provider);
+        return p != 0 ? p : a.status.index.compareTo(b.status.index);
+      });
+    for (final r in byProvider) {
+      _row(sheet, [
+        r.equipment.name,
+        r.equipment.displayPlate,
+        r.item.kind.label,
+        r.item.title,
+        _due(r.item),
+        r.status.label,
+        r.item.provider,
+        r.item.cycleMonths,
+        r.item.note,
+      ]);
+    }
+    _style(sheet, 3, 9);
+    final logSheet = book['Lịch sử'];
+    _title(logSheet, settings, 'LỊCH SỬ THỰC HIỆN', 9);
+    _row(logSheet, [
+      'Thiết bị',
+      'Biển số',
+      'Hạng mục',
+      'Ngày thực hiện',
+      'Chi phí (VND)',
+      'Đơn vị thực hiện',
+      'Hạn cũ',
+      'Hạn tiếp theo',
+      'Ghi chú',
+    ]);
+    final byItem = {for (final r in rows) r.item.id: r};
+    for (final log in [
+      ...history,
+    ]..sort((a, b) => b.doneDate.compareTo(a.doneDate))) {
+      final r = byItem[log.itemId];
+      if (r == null) continue;
+      _row(logSheet, [
+        r.equipment.name,
+        r.equipment.displayPlate,
+        r.item.title,
+        displayDate(log.doneDate),
+        log.cost,
+        log.provider,
+        displayDate(log.previousDueDate, r.item.precision),
+        displayDate(log.nextDueDate, r.item.precision),
+        log.note,
+      ]);
+    }
+    _style(logSheet, 3, 9);
+    return _finish(book);
+  }
+}
+
+String _roman(int number) {
+  var result = '';
+  var n = number;
+  for (final pair in [
+    (1000, 'M'),
+    (900, 'CM'),
+    (500, 'D'),
+    (400, 'CD'),
+    (100, 'C'),
+    (90, 'XC'),
+    (50, 'L'),
+    (40, 'XL'),
+    (10, 'X'),
+    (9, 'IX'),
+    (5, 'V'),
+    (4, 'IV'),
+    (1, 'I'),
+  ]) {
+    while (n >= pair.$1) {
+      result += pair.$2;
+      n -= pair.$1;
+    }
+  }
+  return result;
+}

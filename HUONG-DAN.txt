@@ -1,0 +1,20 @@
+EQUIPMENTMANAGER — HƯỚNG DẪN NHANH
+
+1. Tải bộ cài Windows / APK trong mục Releases của repo.
+2. Mở Dữ liệu & báo cáo → Tải mẫu nhập Excel, điền và nhập lại.
+3. Kiểm tra bản xem trước; chọn tạo mới hoặc thiết bị cần ghép cho mỗi dòng.
+4. Vào Cài đặt → bật nhắc hạn, cấp quyền khi điện thoại hỏi → Gửi thông báo thử.
+5. Xem Tổng quan / Theo dõi hạn. Dùng Gia hạn / Hoàn thành để ghi lịch sử.
+6. Sao lưu hằng tháng. Chuyển máy: sao lưu ở máy cũ, khôi phục ở máy mới.
+
+ĐỎ: quá hạn. VÀNG: sắp đến hạn. XANH: còn hạn. XÁM: cần cập nhật.
+Ngày dạng MM/yyyy có hạn đến ngày cuối tháng đó.
+Không áp dụng / ACV mua tập trung không phát cảnh báo.
+
+Windows: nếu SmartScreen hiện cảnh báo, kiểm tra file tải đúng từ repo rồi chọn
+More info (Thông tin khác) → Run anyway (Vẫn chạy). Bản hiện tại chưa ký số Windows.
+
+Android: cho phép thông báo và báo thức/lời nhắc. Không dùng Buộc dừng ứng dụng.
+Nếu bị hạn chế pin, cho phép chạy nền trong cài đặt điện thoại.
+
+Xem README.md để biết cách tạo bản phát hành bằng tag và quản lý khóa ký.

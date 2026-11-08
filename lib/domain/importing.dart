@@ -201,13 +201,14 @@ void parseEquipmentRows(
     return;
   }
   final numbering = <String, int>{};
-  var group = 'I. Phục vụ bay';
+  var group = metadataOnly ? 'Chưa phân nhóm' : 'I. Phục vụ bay';
   for (var n = header + 1; n < rows.length; n++) {
     if (rows[n].every((c) => c.trim().isEmpty)) continue;
     final first = rows[n].where((c) => c.trim().isNotEmpty).first.trim();
     if (RegExp(r'^[IVXLCDM]+[.\s]').hasMatch(first) &&
         int.tryParse(first) == null) {
       group = first;
+      numbering.clear();
       continue;
     }
     final row = <String, String>{
@@ -240,8 +241,18 @@ void parseEquipmentRows(
       );
       continue;
     }
-    final plate = _value(row, metadataOnly ? ['Biển kiểm soát'] : ['Biển số']);
-    final note = _value(row, ['Ghi chú']);
+    final rawPlate = _value(
+      row,
+      metadataOnly ? ['Biển kiểm soát'] : ['Biển số'],
+    );
+    final plate =
+        ['khongcapbs', 'khongcapbienso'].contains(normalized(rawPlate))
+        ? ''
+        : rawPlate;
+    final note = [
+      _value(row, ['Ghi chú']),
+      if (rawPlate.isNotEmpty && plate.isEmpty) 'Biển số nguồn: $rawPlate',
+    ].where((s) => s.isNotEmpty).join('; ');
     final explicitGroup = _value(row, ['Nhóm']);
     final yearText = _value(row, ['Năm sản xuất']);
     final year = int.tryParse(yearText);
@@ -257,6 +268,26 @@ void parseEquipmentRows(
       continue;
     }
     var management = ManagementStatus.active;
+    if (metadataOnly) {
+      for (final field in [
+        'Nước sản xuất',
+        'Năm sản xuất',
+        'Số khung',
+        'Số động cơ',
+        'Mục đích sử dụng',
+        'Hoạt động tại',
+      ]) {
+        if (_value(row, [field]).isEmpty) {
+          plan.issues.add(
+            ImportIssue(
+              source,
+              n + 1,
+              '$field: ô nguồn trống; cần kiểm tra có áp dụng hay không.',
+            ),
+          );
+        }
+      }
+    }
     final noteKey = normalized(note);
     if (noteKey.contains('bangiao')) management = ManagementStatus.handedOver;
     if (noteKey.contains('tangcuong')) management = ManagementStatus.deployed;
@@ -281,6 +312,10 @@ void parseEquipmentRows(
       operatingAt: _value(row, ['Hoạt động tại']).isEmpty
           ? 'Cảng HK Cà Mau'
           : _value(row, ['Hoạt động tại']),
+      selfPropelled:
+          !normalized(name).contains('khongtuhanh') &&
+          !normalized(name).contains('mooc') &&
+          normalized(name) != 'dolly',
       managementStatus: management,
       note: note,
     );
@@ -325,8 +360,7 @@ void parseEquipmentRows(
                 ),
               );
             }
-            if (statusOf(parsed, equipment, const AppSettings(), today) ==
-                DeadlineStatus.overdue) {
+            if (hasPastDeadline(parsed, today)) {
               plan.issues.add(
                 ImportIssue(
                   source,
@@ -420,7 +454,14 @@ DeadlineItem? parseImportedDeadline(
 }) {
   final key = normalized(raw);
   if (['khongapdung', 'na', 'khong', '-'].contains(key) || raw.trim() == '-') {
-    return null;
+    return kind == ItemKind.insurance
+        ? DeadlineItem(
+            equipmentId: equipmentId,
+            kind: kind,
+            title: kind.label,
+            insuranceMode: InsuranceMode.notApplicable,
+          )
+        : null;
   }
   if (kind == ItemKind.insurance &&
       ['acvmua', 'acvmuataptrung'].contains(key)) {

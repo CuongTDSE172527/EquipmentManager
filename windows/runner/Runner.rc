@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "vn.cah" "\0"
-            VALUE "FileDescription", "equipment_manager" "\0"
+            VALUE "FileDescription", "EquipmentManager" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "equipment_manager" "\0"
+            VALUE "InternalName", "EquipmentManager" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 vn.cah. All rights reserved." "\0"
-            VALUE "OriginalFilename", "equipment_manager.exe" "\0"
-            VALUE "ProductName", "equipment_manager" "\0"
+            VALUE "OriginalFilename", "EquipmentManager.exe" "\0"
+            VALUE "ProductName", "EquipmentManager" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
