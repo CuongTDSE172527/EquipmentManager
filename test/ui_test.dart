@@ -16,7 +16,11 @@ class SilentNotifications extends NotificationService {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  for (final size in [const Size(1440, 1000), const Size(412, 915)]) {
+  for (final size in [
+    const Size(1440, 1000),
+    const Size(412, 915),
+    const Size(360, 640),
+  ]) {
     testWidgets('Giao diện rỗng, thêm thiết bị và 200 hạng mục ở $size', (
       tester,
     ) async {
@@ -40,7 +44,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       if (size.width < 960) {
-        await tester.drag(find.byType(ListView).first, const Offset(0, -500));
+        await tester.scrollUntilVisible(
+          find.text('Chưa có dữ liệu thiết bị'),
+          180,
+          scrollable: find.byType(Scrollable).first,
+        );
         await tester.pumpAndSettle();
       }
       expect(find.text('Chưa có dữ liệu thiết bị'), findsOneWidget);
@@ -85,6 +93,21 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('200 hạng mục'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      if (size.width < 960) {
+        await tester.tap(find.text('Bộ lọc'));
+        await tester.pumpAndSettle();
+        expect(find.text('Lọc hạng mục'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Đóng'));
+        await tester.pumpAndSettle();
+        tester.view.viewInsets = FakeViewPadding(
+          bottom: 280 * tester.view.devicePixelRatio,
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        tester.view.resetViewInsets();
+        await tester.pumpAndSettle();
+      }
       await repo.saveSettings(c.settings.copy({'theme': 'dark'}));
       await c.load();
       await tester.pumpAndSettle();

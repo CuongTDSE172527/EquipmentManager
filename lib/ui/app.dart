@@ -725,133 +725,168 @@ class _AppState extends State<EquipmentManagerApp> {
         return n == 0 ? a.status.index.compareTo(b.status.index) : n;
       });
     }
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              _searchField(),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  _filter<String>(
-                    'Nhóm',
-                    group,
-                    c.groups,
-                    (v) => v,
-                    (v) => group = v,
-                  ),
-                  _filter<ItemKind>(
-                    'Loại hạng mục',
-                    kind,
-                    ItemKind.values,
-                    (v) => v.label,
-                    (v) => kind = v,
-                  ),
-                  _filter<DeadlineStatus>(
-                    'Trạng thái',
-                    status,
-                    DeadlineStatus.values,
-                    (v) => v.label,
-                    (v) {
-                      status = v;
-                      alertsOnly = false;
-                    },
-                  ),
-                  _filter<String>(
-                    'Đơn vị thực hiện',
-                    provider,
-                    c.providers,
-                    (v) => v,
-                    (v) => provider = v,
-                  ),
-                  _filter<ManagementStatus>(
-                    'Trạng thái quản lý',
-                    management,
-                    ManagementStatus.values,
-                    (v) => v.label,
-                    (v) => management = v,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${rows.length} hạng mục${alertsOnly ? ' • Chỉ cảnh báo' : ''}',
+    return LayoutBuilder(
+      builder: (context, bounds) => Column(
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: bounds.maxHeight * .6),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    _searchField(),
+                    const SizedBox(height: 16),
+                    Builder(
+                      builder: (context) {
+                        final filters = Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            _filter<String>(
+                              'Nhóm',
+                              group,
+                              c.groups,
+                              (v) => v,
+                              (v) => group = v,
+                            ),
+                            _filter<ItemKind>(
+                              'Loại hạng mục',
+                              kind,
+                              ItemKind.values,
+                              (v) => v.label,
+                              (v) => kind = v,
+                            ),
+                            _filter<DeadlineStatus>(
+                              'Trạng thái',
+                              status,
+                              DeadlineStatus.values,
+                              (v) => v.label,
+                              (v) {
+                                status = v;
+                                alertsOnly = false;
+                              },
+                            ),
+                            _filter<String>(
+                              'Đơn vị thực hiện',
+                              provider,
+                              c.providers,
+                              (v) => v,
+                              (v) => provider = v,
+                            ),
+                            _filter<ManagementStatus>(
+                              'Trạng thái quản lý',
+                              management,
+                              ManagementStatus.values,
+                              (v) => v.label,
+                              (v) => management = v,
+                            ),
+                          ],
+                        );
+                        if (wide) return filters;
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.filter_alt_outlined),
+                            label: const Text('Bộ lọc'),
+                            onPressed: () => showDialog<void>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Lọc hạng mục'),
+                                content: SizedBox(
+                                  width: 480,
+                                  child: SingleChildScrollView(child: filters),
+                                ),
+                                actions: [
+                                  FilledButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Đóng'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                  Flexible(
-                    child: SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text(
-                        'Gom theo đơn vị',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                      value: byProvider,
-                      onChanged: (v) => setState(() => byProvider = v),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Xóa bộ lọc',
-                    onPressed: () => setState(() {
-                      search.clear();
-                      group = null;
-                      kind = null;
-                      status = null;
-                      provider = null;
-                      management = ManagementStatus.active;
-                      alertsOnly = false;
-                      byProvider = false;
-                    }),
-                    icon: const Icon(Icons.filter_alt_off_outlined),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: rows.isEmpty
-              ? SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: _empty(
-                    context,
-                    'Không có hạng mục phù hợp',
-                    'Thử đổi bộ lọc hoặc thêm hạng mục.',
-                  ),
-                )
-              : wide
-              ? _deadlineTable(context, rows)
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-                  itemCount: rows.length,
-                  itemBuilder: (context, n) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (byProvider &&
-                          (n == 0 ||
-                              rows[n - 1].item.provider !=
-                                  rows[n].item.provider))
-                        Padding(
-                          padding: const EdgeInsets.all(8),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
                           child: Text(
-                            rows[n].item.provider.isEmpty
-                                ? 'Chưa chọn đơn vị'
-                                : rows[n].item.provider,
-                            style: Theme.of(context).textTheme.titleMedium,
+                            '${rows.length} hạng mục${alertsOnly ? ' • Chỉ cảnh báo' : ''}',
                           ),
                         ),
-                      _deadlineCard(context, rows[n]),
-                    ],
-                  ),
+                        Flexible(
+                          child: SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text(
+                              'Gom theo đơn vị',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                            value: byProvider,
+                            onChanged: (v) => setState(() => byProvider = v),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Xóa bộ lọc',
+                          onPressed: () => setState(() {
+                            search.clear();
+                            group = null;
+                            kind = null;
+                            status = null;
+                            provider = null;
+                            management = ManagementStatus.active;
+                            alertsOnly = false;
+                            byProvider = false;
+                          }),
+                          icon: const Icon(Icons.filter_alt_off_outlined),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-        ),
-      ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: rows.isEmpty
+                ? SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: _empty(
+                      context,
+                      'Không có hạng mục phù hợp',
+                      'Thử đổi bộ lọc hoặc thêm hạng mục.',
+                    ),
+                  )
+                : wide
+                ? _deadlineTable(context, rows)
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
+                    itemCount: rows.length,
+                    itemBuilder: (context, n) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (byProvider &&
+                            (n == 0 ||
+                                rows[n - 1].item.provider !=
+                                    rows[n].item.provider))
+                          Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(
+                              rows[n].item.provider.isEmpty
+                                  ? 'Chưa chọn đơn vị'
+                                  : rows[n].item.provider,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        _deadlineCard(context, rows[n]),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
