@@ -3,6 +3,7 @@ analyzer:
   errors:
     invalid_use_of_protected_member: error
   exclude:
+    - private/**
     - build/**
     - android/**
     - windows/**

@@ -53,8 +53,24 @@ enum DeadlineStatus {
 T enumValue<T extends Enum>(List<T> values, dynamic value, T fallback) =>
     values.where((v) => v.name == value).firstOrNull ?? fallback;
 
-DateTime? readDate(dynamic value) =>
-    value == null || value == '' ? null : DateTime.parse(value as String);
+DateTime? readDate(dynamic value) {
+  if (value == null || value == '') return null;
+  if (value is! String) {
+    throw const FormatException('Ngày trong dữ liệu không phải chuỗi.');
+  }
+  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})(?:T|$)').firstMatch(value);
+  if (match == null) {
+    throw const FormatException('Ngày trong dữ liệu phải theo ISO-8601.');
+  }
+  final y = int.parse(match[1]!),
+      m = int.parse(match[2]!),
+      d = int.parse(match[3]!);
+  final day = DateTime(y, m, d);
+  if (day.year != y || day.month != m || day.day != d) {
+    throw const FormatException('Ngày trong dữ liệu không tồn tại.');
+  }
+  return DateTime.parse(value);
+}
 
 class Equipment {
   Equipment({

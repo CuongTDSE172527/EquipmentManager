@@ -40,7 +40,7 @@ tool/          Mẫu Excel, phiên bản, kiểm tra nguồn cục bộ, thiết
 
 ```sh
 flutter pub get --enforce-lockfile
-dart format --output=none --set-exit-if-changed lib test tool
+dart format --output=none --set-exit-if-changed lib test tool integration_test
 flutter analyze --fatal-infos
 flutter test --coverage
 dart run tool/generate_templates.dart
@@ -98,6 +98,8 @@ Nếu tự thiết lập ở repo khác:
 
 ## Tài liệu nguồn và dữ liệu thật
 
-Hai tài liệu Word được xử lý cục bộ để lập bản đối chiếu trong `private/`. Không nhúng dữ liệu nguồn vào mã, mẫu Excel hay Git. File `private/nguon-chua-xac-nhan.xlsx` giữ dữ liệu nguồn chưa sửa; 4 dòng sai cột nước/năm sẽ bị chặn khi nhập. Chưa có dòng ghép nào được mặc nhiên phê duyệt. Xem báo cáo cục bộ, xác nhận các điểm không chắc chắn rồi sửa bản Excel trước khi nhập qua ứng dụng.
+Tài liệu Word được xử lý cục bộ để lập bản đối chiếu trong `private/`. Không nhúng dữ liệu nguồn vào mã, mẫu Excel hay Git. Giữ một bản Excel nguyên trạng, lập bản sửa riêng sau khi chủ dữ liệu xác nhận. Các dòng sai cột/ngày/năm bị chặn; mọi liên kết thiết bị phải được duyệt trước khi nhập. Báo cáo duyệt, SQLite kiểm thử và bản sao lưu có dữ liệu thật chỉ nằm trong `private/`, không nằm trong Release.
+
+Workflow **Kiểm tra nhắc nền Android** chạy tay trên emulator API 26 và 33, dùng dữ liệu giả. Harness đặt alarm, host đóng tiến trình ứng dụng, rồi kiểm tra callback `dailyReminder` thực sự đăng thông báo tổng hợp. Harness dùng điểm vào riêng, không được phát hành. Kết quả/log kiểm thử nằm trong artifacts của workflow này. Vẫn cần kiểm tra quyền, chế độ pin và bấm thông báo trên điện thoại sử dụng thực tế.
 
 Phụ thuộc chính: Drift/SQLite, excel (MIT), csv, flutter_local_notifications, android_alarm_manager_plus, file_picker, intl. `installer/Vietnamese.isl` lấy từ [bản dịch cộng đồng của Inno Setup](https://github.com/jrsoftware/issrc/blob/main/Files/Languages/Unofficial/Vietnamese.isl), giữ nguyên chú thích tác giả.

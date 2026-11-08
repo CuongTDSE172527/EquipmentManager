@@ -36,7 +36,7 @@ jobs:
         env:
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
         run: dart run tool/check_version.dart "$TAG"
-      - run: dart format --output=none --set-exit-if-changed lib test tool
+      - run: dart format --output=none --set-exit-if-changed lib test tool integration_test
       - run: flutter analyze --fatal-infos
       - run: flutter test --coverage
       - run: dart run tool/generate_templates.dart

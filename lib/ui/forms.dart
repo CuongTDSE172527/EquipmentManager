@@ -470,7 +470,8 @@ Future<void> itemForm(
                     'note': note.text.trim(),
                     'isDone': i.isDone,
                     'requiresConfirmation': needsConfirmation,
-                    'expiredWithoutDate': expired,
+                    'expiredWithoutDate':
+                        kind != ItemKind.insurance && expired && parsed == null,
                   }),
                 );
               } catch (ex) {
