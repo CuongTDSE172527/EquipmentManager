@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import '../domain/models.dart';
@@ -11,7 +12,7 @@ class AppDatabase extends GeneratedDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
   factory AppDatabase.memory() => AppDatabase(NativeDatabase.memory());
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
   @override
@@ -32,6 +33,7 @@ class AppDatabase extends GeneratedDatabase {
         'CREATE TABLE history_logs (id TEXT PRIMARY KEY, item_id TEXT NOT NULL REFERENCES deadline_items(id) ON DELETE CASCADE, payload TEXT NOT NULL)',
       );
       await _createServiceRecords();
+      await _createAttachments();
       await customStatement(
         'CREATE INDEX history_item ON history_logs(item_id)',
       );
@@ -67,6 +69,7 @@ class AppDatabase extends GeneratedDatabase {
     },
     onUpgrade: (_, from, to) async {
       if (from < 2) await _createServiceRecords();
+      if (from < 3) await _createAttachments();
     },
     beforeOpen: (_) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -83,7 +86,23 @@ class AppDatabase extends GeneratedDatabase {
       'CREATE INDEX service_equipment ON service_records(equipment_id)',
     );
   }
+
+  Future<void> _createAttachments() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS attachments (id TEXT PRIMARY KEY, equipment_id TEXT NOT NULL REFERENCES equipment(id) ON DELETE CASCADE, link_id TEXT, payload TEXT NOT NULL, data BLOB NOT NULL)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS attachments_equipment ON attachments(equipment_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS attachments_link ON attachments(link_id)',
+    );
+  }
 }
+
+/// Current backup format. 1 and 2 are JSON only; 3 adds attachment metadata,
+/// with the bytes stored beside the JSON in a ZIP archive.
+const backupVersion = 3;
 
 class EquipmentRepository {
   EquipmentRepository(this.db);
@@ -115,8 +134,78 @@ class EquipmentRepository {
     });
   }
 
-  Future<void> deleteServiceRecord(String id) =>
-      db.customStatement('DELETE FROM service_records WHERE id=?', [id]);
+  Future<void> deleteServiceRecord(String id) => db.transaction(() async {
+    await _unlinkAttachments(id);
+    await db.customStatement('DELETE FROM service_records WHERE id=?', [id]);
+  });
+
+  /// Metadata only; bytes are read on demand with [attachmentData].
+  Future<List<Attachment>> attachments() async =>
+      (await _rows('attachments')).map(Attachment.fromJson).toList();
+
+  Future<Uint8List> attachmentData(String id) async {
+    final rows = await db
+        .customSelect(
+          'SELECT data FROM attachments WHERE id = ?',
+          variables: [Variable(id)],
+        )
+        .get();
+    if (rows.isEmpty) throw StateError('Không tìm thấy tệp đính kèm.');
+    return rows.single.read<Uint8List>('data');
+  }
+
+  Future<void> addAttachment(Attachment a, Uint8List data) async {
+    validateAttachment(a);
+    if (data.length != a.size || sha256.convert(data).toString() != a.sha256) {
+      throw const FormatException('Nội dung tệp đính kèm không khớp.');
+    }
+    await db.customStatement('INSERT INTO attachments VALUES (?, ?, ?, ?, ?)', [
+      a.id,
+      a.equipmentId,
+      a.linkId,
+      jsonEncode(a.toJson()),
+      data,
+    ]);
+  }
+
+  /// Changes title, note or link; the stored bytes are never replaced.
+  Future<void> updateAttachment(Attachment a) async {
+    validateAttachment(a);
+    final current = (await attachments()).where((x) => x.id == a.id);
+    if (current.isEmpty ||
+        current.single.sha256 != a.sha256 ||
+        current.single.equipmentId != a.equipmentId) {
+      throw const FormatException('Không sửa được tệp đính kèm này.');
+    }
+    await db.customStatement(
+      'UPDATE attachments SET link_id=?, payload=? WHERE id=?',
+      [a.linkId, jsonEncode(a.toJson()), a.id],
+    );
+  }
+
+  Future<void> deleteAttachment(String id) =>
+      db.customStatement('DELETE FROM attachments WHERE id=?', [id]);
+
+  /// Documents outlive the item or record they were linked to; they move back
+  /// to the equipment instead of being deleted with it.
+  Future<void> _unlinkAttachments(String linkId) async {
+    final rows = await db
+        .customSelect(
+          'SELECT payload FROM attachments WHERE link_id = ?',
+          variables: [Variable(linkId)],
+        )
+        .get();
+    for (final row in rows) {
+      final a = Attachment.fromJson(
+        jsonDecode(row.read<String>('payload')) as Json,
+      ).copy({'linkId': null});
+      await db.customStatement(
+        'UPDATE attachments SET link_id=NULL, payload=? WHERE id=?',
+        [jsonEncode(a.toJson()), a.id],
+      );
+    }
+  }
+
   Future<AppSettings> settings() async {
     final rows = await _rows('settings');
     return rows.isEmpty
@@ -206,8 +295,10 @@ class EquipmentRepository {
 
   Future<void> deleteEquipment(String id) =>
       db.customStatement('DELETE FROM equipment WHERE id=?', [id]);
-  Future<void> deleteItem(String id) =>
-      db.customStatement('DELETE FROM deadline_items WHERE id=?', [id]);
+  Future<void> deleteItem(String id) => db.transaction(() async {
+    await _unlinkAttachments(id);
+    await db.customStatement('DELETE FROM deadline_items WHERE id=?', [id]);
+  });
   Future<void> saveSettings(AppSettings settings) async {
     validateSettings(settings);
     await db.customStatement(
@@ -232,7 +323,7 @@ class EquipmentRepository {
 
   Future<Json> snapshot() async => {
     'format': 'EquipmentManager',
-    'version': 2,
+    'version': backupVersion,
     'equipment': (await equipment()).map((e) => e.toJson()).toList(),
     'items': (await items()).map((e) => e.toJson()).toList(),
     'history': (await history()).map((e) => e.toJson()).toList(),
@@ -240,12 +331,18 @@ class EquipmentRepository {
     'settings': (await settings()).toJson(),
     'groups': await catalog('group'),
     'providers': await catalog('provider'),
+    'attachments': (await attachments()).map((e) => e.toJson()).toList(),
   };
 
   /// Parse and validate the complete backup before deleting any current records.
-  Future<void> restore(Json backup) async {
+  /// [files] holds attachment bytes by attachment id (backup format 3).
+  /// Formats 1 and 2 carry no attachments, so restoring them removes all.
+  Future<void> restore(
+    Json backup, {
+    Map<String, Uint8List> files = const {},
+  }) async {
     if (backup['format'] != 'EquipmentManager' ||
-        ![1, 2].contains(backup['version'])) {
+        ![1, 2, 3].contains(backup['version'])) {
       throw const FormatException(
         'File sao lưu không đúng định dạng hoặc phiên bản.',
       );
@@ -271,6 +368,24 @@ class EquipmentRepository {
     for (final record in services) {
       validateServiceRecord(record);
     }
+    final attached = backup['version'] == 3
+        ? (backup['attachments'] as List? ?? const [])
+              .map(
+                (e) => Attachment.fromJson(Map<String, dynamic>.from(e as Map)),
+              )
+              .toList()
+        : <Attachment>[];
+    for (final a in attached) {
+      validateAttachment(a);
+      final data = files[a.id];
+      if (data == null ||
+          data.length != a.size ||
+          sha256.convert(data).toString() != a.sha256) {
+        throw FormatException(
+          'Sao lưu thiếu hoặc hỏng tệp đính kèm “${a.title}”.',
+        );
+      }
+    }
     final config = AppSettings.fromJson(
       Map<String, dynamic>.from(backup['settings'] as Map),
     );
@@ -281,6 +396,8 @@ class EquipmentRepository {
         itemIds.length != itemRows.length ||
         logs.map((e) => e.id).toSet().length != logs.length ||
         services.map((e) => e.id).toSet().length != services.length ||
+        attached.map((e) => e.id).toSet().length != attached.length ||
+        attached.any((e) => !ids.contains(e.equipmentId)) ||
         services.any((e) => !ids.contains(e.equipmentId)) ||
         itemRows.any((e) => !ids.contains(e.equipmentId)) ||
         logs.any((e) => !itemIds.contains(e.itemId))) {
@@ -301,7 +418,9 @@ class EquipmentRepository {
         throw const FormatException('Hạng mục trong sao lưu không hợp lệ.');
       }
     }
+    final linkable = {...itemIds, ...services.map((e) => e.id)};
     await db.transaction(() async {
+      await db.customStatement('DELETE FROM attachments');
       await db.customStatement('DELETE FROM service_records');
       await db.customStatement('DELETE FROM history_logs');
       await db.customStatement('DELETE FROM deadline_items');
@@ -322,6 +441,12 @@ class EquipmentRepository {
       }
       for (final record in services) {
         await saveServiceRecord(record);
+      }
+      for (final a in attached) {
+        await addAttachment(
+          linkable.contains(a.linkId) ? a : a.copy({'linkId': null}),
+          files[a.id]!,
+        );
       }
       for (final name in backup['groups'] as List) {
         await addCatalog('group', name as String);

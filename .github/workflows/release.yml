@@ -179,6 +179,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.checks.outputs.version }}
         run: |
-          flags=()
-          if [[ "$VERSION" == 0.* ]]; then flags+=(--prerelease); fi
-          gh release create "v$VERSION" dist/*.apk dist/*.exe dist/*.zip dist/*.xlsx --title "EquipmentManager $VERSION" --generate-notes --verify-tag "${flags[@]}"
+          # From 0.3.0, 0.x builds are normal (Latest) releases labelled Beta,
+          # so users who exclude pre-releases still receive them over OTA.
+          title="EquipmentManager $VERSION"
+          if [[ "$VERSION" == 0.* ]]; then title="$title Beta"; fi
+          gh release create "v$VERSION" dist/*.apk dist/*.exe dist/*.zip dist/*.xlsx --title "$title" --generate-notes --verify-tag --latest

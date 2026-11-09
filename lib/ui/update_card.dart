@@ -304,7 +304,9 @@ class _UpdateCardState extends State<UpdateCard> with WidgetsBindingObserver {
             ],
           ),
           const SizedBox(height: 12),
-          Text('Phiên bản đang dùng: ${current ?? 'đang đọc…'}'),
+          Text(
+            'Phiên bản đang dùng: ${current ?? 'đang đọc…'}${current?.major == 0 ? ' Beta' : ''}',
+          ),
           const Text(
             'Kiểm tra và tải từ GitHub khi có Internet. Dữ liệu thiết bị được giữ trên máy.',
           ),
@@ -313,7 +315,7 @@ class _UpdateCardState extends State<UpdateCard> with WidgetsBindingObserver {
             contentPadding: EdgeInsets.zero,
             title: const Text('Bao gồm bản thử nghiệm'),
             subtitle: const Text(
-              'Các bản 0.x hiện được phát hành ở kênh thử nghiệm.',
+              'Từ 0.3.0, bản Beta phát hành như bản chính thức. Bật để nhận thêm bản thử nghiệm (pre-release) nếu có.',
             ),
             value: includePrereleases,
             onChanged: busy

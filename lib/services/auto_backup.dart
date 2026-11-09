@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../data/backup_archive.dart';
 import '../data/database.dart';
 import '../domain/deadlines.dart';
 import '../domain/models.dart';
@@ -14,15 +14,24 @@ class AutoBackupFile {
   final bool beforeRestore;
 }
 
-/// Rotating JSON copies inside the app support folder. They protect against
+/// Rotating copies inside the app support folder. They protect against
 /// mistakes and failed edits, not against losing the device.
 class AutoBackupService {
-  AutoBackupService({Future<Directory> Function()? root, this.keep = 10})
-    : _root = root;
+  AutoBackupService({
+    Future<Directory> Function()? root,
+    this.keep = 10,
+    this.maxTotalBytes = 500 * 1024 * 1024,
+    this.minKeep = 2,
+  }) : _root = root;
   final Future<Directory> Function()? _root;
-  final int keep;
+
+  /// At most [keep] copies, trimmed further to [maxTotalBytes] once
+  /// attachments make copies large, but never below the newest [minKeep].
+  final int keep, maxTotalBytes, minKeep;
+
+  // `.json` files were written by 0.2.0 and stay listed and restorable.
   static final _name = RegExp(
-    r'^auto-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})(\d{6})(-truoc-khoi-phuc)?\.backup\.json$',
+    r'^auto-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})(\d{6})(-truoc-khoi-phuc)?\.backup\.(json|zip)$',
   );
 
   Future<Directory> directory() async => Directory(
@@ -55,30 +64,20 @@ class AutoBackupService {
     DateTime now, {
     bool beforeRestore = false,
   }) async {
-    final data = await repository.db.transaction(() => repository.snapshot());
     final folder = await directory();
-    await folder.create(recursive: true);
     String two(int n) => n.toString().padLeft(2, '0');
     final stamp =
         '${now.year}${two(now.month)}${two(now.day)}-${two(now.hour)}${two(now.minute)}${two(now.second)}'
         '${(now.millisecond * 1000 + now.microsecond).toString().padLeft(6, '0')}';
-    final target = File(
-      p.join(
-        folder.path,
-        'auto-$stamp${beforeRestore ? '-truoc-khoi-phuc' : ''}.backup.json',
+    final target = await writeBackupFile(
+      repository,
+      File(
+        p.join(
+          folder.path,
+          'auto-$stamp${beforeRestore ? '-truoc-khoi-phuc' : ''}.backup.zip',
+        ),
       ),
     );
-    final temporary = File('${target.path}.part');
-    try {
-      await temporary.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(data),
-        flush: true,
-      );
-      await temporary.rename(target.path);
-    } catch (_) {
-      if (await temporary.exists()) await temporary.delete();
-      rethrow;
-    }
     await repository.saveSettings(
       (await repository.settings()).copy({
         'lastAutoBackup': now.toIso8601String(),
@@ -112,15 +111,16 @@ class AutoBackupService {
   }
 
   Future<void> prune() async {
-    for (final old in (await list()).skip(keep)) {
-      await old.file.delete();
+    var total = 0;
+    final files = await list();
+    for (var n = 0; n < files.length; n++) {
+      total += files[n].size;
+      final overCount = n >= keep;
+      final overSize = n >= minKeep && total > maxTotalBytes;
+      if (overCount || overSize) await files[n].file.delete();
     }
   }
 
-  Future<Json> read(AutoBackupFile backup) async {
-    if (await backup.file.length() > 50 * 1024 * 1024) {
-      throw const FormatException('File sao lưu quá lớn.');
-    }
-    return jsonDecode(await backup.file.readAsString()) as Json;
-  }
+  Future<BackupBundle> read(AutoBackupFile backup) =>
+      readBackupFile(backup.file);
 }

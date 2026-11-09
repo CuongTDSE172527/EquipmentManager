@@ -7,11 +7,13 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../domain/models.dart';
 import '../domain/deadlines.dart';
 import '../domain/updates.dart';
+import '../services/attachment_files.dart';
 import '../services/auto_backup.dart';
 import '../services/notifications.dart';
 import '../services/update_installer.dart';
 import '../services/updates.dart';
 import 'controller.dart';
+import 'attachments_section.dart';
 import 'forms.dart';
 import 'data_page.dart';
 import 'settings_page.dart';
@@ -67,6 +69,7 @@ class EquipmentManagerApp extends StatefulWidget {
     this.autoBackup,
     this.updates,
     this.installer,
+    this.opener = const AttachmentOpener(),
   });
   final AppController controller;
   final NotificationService notifications;
@@ -75,6 +78,7 @@ class EquipmentManagerApp extends StatefulWidget {
   final AutoBackupService? autoBackup;
   final UpdateService? updates;
   final UpdateInstaller? installer;
+  final AttachmentOpener opener;
   @override
   State<EquipmentManagerApp> createState() => _AppState();
 }
@@ -496,7 +500,7 @@ class _AppState extends State<EquipmentManagerApp> {
                                   Padding(
                                     padding: const EdgeInsets.only(left: 12),
                                     child: Text(
-                                      'Phiên bản $version',
+                                      'Phiên bản $version${version.startsWith('0.') ? ' Beta' : ''}',
                                       style: const TextStyle(
                                         color: Color(0xFF91ACBA),
                                         fontSize: 11,
@@ -1493,6 +1497,13 @@ class _AppState extends State<EquipmentManagerApp> {
                         ],
                       ),
                       const SizedBox(height: 24),
+                      AttachmentsSection(
+                        controller: c,
+                        equipment: e,
+                        run: _run,
+                        opener: widget.opener,
+                      ),
+                      const SizedBox(height: 16),
                       Row(
                         children: [
                           Expanded(

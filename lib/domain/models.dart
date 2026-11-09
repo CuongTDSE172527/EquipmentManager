@@ -385,3 +385,87 @@ class AppSettings {
     lastUpdateCheck: readDate(j['lastUpdateCheck']),
   );
 }
+
+/// File types accepted as attachments, mapped to the MIME type used to open them.
+const attachmentTypes = {
+  'pdf': 'application/pdf',
+  'jpg': 'image/jpeg',
+  'jpeg': 'image/jpeg',
+  'png': 'image/png',
+  'webp': 'image/webp',
+  'heic': 'image/heic',
+  'doc': 'application/msword',
+  'docx':
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'xls': 'application/vnd.ms-excel',
+  'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+const maxAttachmentBytes = 25 * 1024 * 1024;
+
+String fileExtension(String name) {
+  final dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
+}
+
+/// A document kept with a piece of equipment, optionally linked to one of its
+/// deadline items or service records. The bytes live in SQLite next to it.
+class Attachment {
+  Attachment({
+    String? id,
+    required this.equipmentId,
+    required this.fileName,
+    required this.size,
+    required this.sha256,
+    String? title,
+    this.linkId,
+    this.note = '',
+    DateTime? createdAt,
+  }) : id = id ?? newId(),
+       title = (title == null || title.trim().isEmpty) ? fileName : title,
+       createdAt = createdAt ?? DateTime.now();
+  final String id, equipmentId, fileName, sha256, title, note;
+  final String? linkId;
+  final int size;
+  final DateTime createdAt;
+  String get extension => fileExtension(fileName);
+  String get mimeType =>
+      attachmentTypes[extension] ?? 'application/octet-stream';
+  bool get isImage => mimeType.startsWith('image/');
+  Attachment copy(Json changes) =>
+      Attachment.fromJson({...toJson(), ...changes});
+  Json toJson() => {
+    'id': id,
+    'equipmentId': equipmentId,
+    'fileName': fileName,
+    'size': size,
+    'sha256': sha256,
+    'title': title,
+    'linkId': linkId,
+    'note': note,
+    'createdAt': createdAt.toIso8601String(),
+  };
+  factory Attachment.fromJson(Json j) => Attachment(
+    id: j['id'] as String?,
+    equipmentId: j['equipmentId'] as String,
+    fileName: j['fileName'] as String,
+    size: j['size'] as int,
+    sha256: j['sha256'] as String,
+    title: j['title'] as String?,
+    linkId: j['linkId'] as String?,
+    note: j['note'] as String? ?? '',
+    createdAt: readDate(j['createdAt']),
+  );
+}
+
+void validateAttachment(Attachment a) {
+  if (a.equipmentId.isEmpty ||
+      a.fileName.trim().isEmpty ||
+      a.fileName.contains(RegExp(r'[\/]')) ||
+      !attachmentTypes.containsKey(a.extension) ||
+      a.size <= 0 ||
+      a.size > maxAttachmentBytes ||
+      !RegExp(r'^[0-9a-f]{64}$').hasMatch(a.sha256) ||
+      a.title.trim().isEmpty) {
+    throw const FormatException('Tệp đính kèm không hợp lệ.');
+  }
+}

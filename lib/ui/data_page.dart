@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../data/backup_archive.dart';
 import '../domain/models.dart';
 import '../domain/deadlines.dart';
 import '../domain/importing.dart';
@@ -118,18 +119,16 @@ class _DataPageState extends State<DataPage> {
       ),
       _action(
         'Sao lưu toàn bộ dữ liệu',
-        'Lưu thiết bị, hạng mục, lịch sử, danh mục và cài đặt vào một file JSON.',
+        'Lưu thiết bị, hạng mục, lịch sử, tệp đính kèm, danh mục và cài đặt vào một file ZIP.',
         Icons.backup_outlined,
         () => _run(() async {
-          final backup = await c.repository.snapshot();
           final now = DateTime.now();
-          (backup['settings'] as Json)['lastBackup'] = now.toIso8601String();
-          if (await saveBytes(
-            'EquipmentManager-$stamp.backup.json',
-            Uint8List.fromList(
-              utf8.encode(const JsonEncoder.withIndent('  ').convert(backup)),
-            ),
-          )) {
+          final bytes = await encodeBackup(
+            c.repository,
+            edit: (data) => (data['settings'] as Json)['lastBackup'] = now
+                .toIso8601String(),
+          );
+          if (await saveBytes('EquipmentManager-$stamp.backup.zip', bytes)) {
             await c.repository.saveSettings(
               c.settings.copy({'lastBackup': now.toIso8601String()}),
             );
@@ -316,15 +315,18 @@ class _DataPageState extends State<DataPage> {
   Future<void> _restore() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['json'],
-      withData: true,
+      allowedExtensions: ['zip', 'json'],
     );
     if (result == null) return;
-    final bytes = result.files.single.bytes!;
-    if (bytes.length > 50 * 1024 * 1024) {
+    final file = result.files.single;
+    if (file.size > maxBackupBytes) {
       throw const FormatException('File sao lưu quá lớn.');
     }
-    await _confirmAndRestore(jsonDecode(utf8.decode(bytes)) as Json);
+    await _confirmAndRestore(
+      file.bytes != null
+          ? decodeBackup(file.bytes!)
+          : await readBackupFile(File(file.path!)),
+    );
   }
 
   String _time(DateTime t) =>
@@ -379,12 +381,12 @@ class _DataPageState extends State<DataPage> {
 
   /// The current data is saved first so a wrong restore can be undone. If that
   /// copy cannot be written, the restore stops before touching the database.
-  Future<void> _confirmAndRestore(Json backup) async {
+  Future<void> _confirmAndRestore(BackupBundle backup) async {
     if (!mounted) return;
     if (!await confirmAction(
       context,
       'Khôi phục và thay dữ liệu hiện tại?',
-      'File chứa ${(backup['equipment'] as List?)?.length ?? 0} thiết bị và ${(backup['items'] as List?)?.length ?? 0} hạng mục. Dữ liệu hiện tại sẽ được lưu một bản tự động rồi thay bằng bản sao lưu.',
+      'File chứa ${backup.equipmentCount} thiết bị, ${backup.itemCount} hạng mục và ${backup.attachmentCount} tệp đính kèm. Dữ liệu hiện tại sẽ được lưu một bản tự động rồi thay bằng bản sao lưu.',
       action: 'Khôi phục',
     )) {
       return;
@@ -392,7 +394,7 @@ class _DataPageState extends State<DataPage> {
     if (c.equipment.isNotEmpty) {
       await auto.create(c.repository, DateTime.now(), beforeRestore: true);
     }
-    await c.repository.restore(backup);
+    await restoreBundle(c.repository, backup);
     await c.load();
     widget.onError(
       'Đã khôi phục dữ liệu. Vào Cài đặt để kiểm tra và đăng ký lại lịch nhắc trên máy này.',

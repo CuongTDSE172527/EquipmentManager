@@ -1,5 +1,12 @@
 # Thay đổi
 
+## 0.3.0 Beta
+
+- **Tệp đính kèm** cho thiết bị: PDF, ảnh, Word, Excel tối đa 25 MB; tên hiển thị, ghi chú, gắn với hạng mục hoặc công việc sổ bảo trì; mở bằng ứng dụng mặc định (Android qua FileProvider), lưu bản sao, sửa, xóa. Xóa hạng mục/công việc giữ tệp; xóa thiết bị xóa tệp.
+- SQLite **schema 3** (bảng `attachments`, tự nâng từ 1/2). Sao lưu **ZIP định dạng 3** cho sao lưu tay, tự động và trước OTA; kiểm tra SHA-256 và kích thước từng tệp trước khi thay dữ liệu; vẫn đọc JSON 1/2.
+- Sao lưu tự động giới hạn tổng dung lượng (~500 MB, luôn giữ 2 bản mới nhất), vẫn liệt kê/khôi phục bản JSON của 0.2.0.
+- Phát hành 0.x dạng **bản chính thức có nhãn Beta** (Latest) thay vì Pre-release; app hiện nhãn Beta.
+
 ## 0.2.0 — thử nghiệm
 
 - Hàng chờ **Cần xác nhận**: thẻ trên Tổng quan, bộ lọc riêng, thao tác Xác nhận dữ liệu (xem trạng thái sau xác nhận; Xác nhận đúng giữ nguyên hạn và ghi ngày xác nhận vào ghi chú, hoặc Sửa hạn). Lịch sử hoàn thành không bị ghi thêm.

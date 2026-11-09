@@ -7,7 +7,7 @@ Repo `CuongTDSE172527/EquipmentManager` đã được chủ repo chuyển sang *
 0.1.3 và các bản trước chưa có OTA. Hãy sao lưu rồi **cài đè 0.1.4 một lần**. Từ 0.1.4:
 
 1. Mở **Cài đặt → Cập nhật ứng dụng → Kiểm tra cập nhật** khi có Internet.
-2. Giữ **Bao gồm bản thử nghiệm** bật để nhận các bản 0.x. Tắt nếu chỉ muốn bản ổn định; có thể chưa có bản ổn định mới hơn.
+2. Từ 0.3.0, bản Beta phát hành như bản chính thức nên luôn được tìm thấy. Bật **Bao gồm bản thử nghiệm** nếu muốn nhận thêm bản Pre-release (0.1.x–0.2.0 thuộc kênh này).
 3. Xem phiên bản, kích thước, thay đổi rồi bấm **Tải bản cập nhật**. Có thể hủy khi tải. Tệp dở hoặc sai hash bị loại bỏ.
 4. Android: nếu chưa có quyền, bấm **Cho phép cài từ EquipmentManager**, bật quyền trong Android rồi quay lại app.
 5. Bấm **Cài đặt bản cập nhật → Sao lưu và cài đặt**. Chỉ mở trình cài sau khi sao lưu thành công. Android hiện trình cài hệ thống để bạn xác nhận; hủy màn hình đó giữ bản đang dùng.
@@ -19,7 +19,7 @@ Cập nhật theo lựa chọn của người dùng, không ép cài. Từ 0.2.0
 
 Trước khi cài, thiết bị, hạn, lịch sử bảo trì/sửa chữa, lịch sử hoàn thành, danh mục và cài đặt được đọc trong một giao dịch SQLite rồi ghi JSON. Không ghi được sao lưu thì dừng cập nhật.
 
-Tệp nằm trong thư mục dữ liệu app: `backups/before-update-<phiên-bản>-<mốc-thời-gian>.backup.json`. Đường dẫn cụ thể hiện trong phần cập nhật. Windows mặc định: `%APPDATA%\vn.cah\EquipmentManager\backups`. Android lưu trong thư mục riêng; vẫn nên dùng **Dữ liệu & báo cáo → Sao lưu** để giữ thêm bản ở nơi khác trước khi đổi máy/gỡ app.
+Tệp nằm trong thư mục dữ liệu app: `backups/before-update-<phiên-bản>-<mốc-thời-gian>.backup.zip` (từ 0.3.0; ZIP gồm `backup.json` và tệp đính kèm, bản cũ hơn là `.backup.json`). Đường dẫn cụ thể hiện trong phần cập nhật. Windows mặc định: `%APPDATA%\vn.cah\EquipmentManager\backups`. Android lưu trong thư mục riêng; vẫn nên dùng **Dữ liệu & báo cáo → Sao lưu** để giữ thêm bản ở nơi khác trước khi đổi máy/gỡ app.
 
 Cài đè giữ SQLite. Không gỡ app cũ. Không hạ versionCode: app cũ có thể không đọc được schema mới.
 

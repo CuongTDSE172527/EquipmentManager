@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+import 'package:equipment_manager/data/backup_archive.dart';
 import 'package:equipment_manager/data/database.dart';
 import 'package:equipment_manager/domain/models.dart';
 import 'package:equipment_manager/services/auto_backup.dart';
@@ -81,7 +82,7 @@ void main() {
 
     final other = AppDatabase.memory();
     final restored = EquipmentRepository(other);
-    await restored.restore(await service.read(files.last));
+    await restoreBundle(restored, await service.read(files.last));
     expect((await restored.equipment()).single.name, 'Xe nâng thử');
     expect((await restored.items()).single.title, 'Sửa');
     await other.close();

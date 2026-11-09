@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../data/backup_archive.dart';
 import '../data/database.dart';
 import '../domain/updates.dart';
 
@@ -125,30 +126,21 @@ Future<File> createUpdateBackup(
   Directory directory,
   AppVersion version,
 ) async {
-  // A single SQLite read transaction gives a consistent snapshot if a reminder is running.
-  final data = await repository.db.transaction(() => repository.snapshot());
-  await directory.create(recursive: true);
-  final target = File(
-    p.join(
-      directory.path,
-      'before-update-$version-${DateTime.now().microsecondsSinceEpoch}.backup.json',
+  // One SQLite read transaction gives a consistent copy, attachments included,
+  // even if a reminder is running.
+  final result = await writeBackupFile(
+    repository,
+    File(
+      p.join(
+        directory.path,
+        'before-update-$version-${DateTime.now().microsecondsSinceEpoch}.backup.zip',
+      ),
     ),
   );
-  final temporary = File('${target.path}.part');
-  try {
-    await temporary.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(data),
-      flush: true,
-    );
-    final result = await temporary.rename(target.path);
-    await repository.saveSettings(
-      (await repository.settings()).copy({
-        'lastBackup': DateTime.now().toIso8601String(),
-      }),
-    );
-    return result;
-  } catch (_) {
-    if (await temporary.exists()) await temporary.delete();
-    rethrow;
-  }
+  await repository.saveSettings(
+    (await repository.settings()).copy({
+      'lastBackup': DateTime.now().toIso8601String(),
+    }),
+  );
+  return result;
 }

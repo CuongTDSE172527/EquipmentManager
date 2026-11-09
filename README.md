@@ -2,7 +2,16 @@
 
 Ứng dụng quản lý trang thiết bị ngoại tuyến cho Windows 10/11 x64 và Android 8 trở lên. Toàn bộ giao diện bằng tiếng Việt, không cần tài khoản hoặc máy chủ. Mỗi máy có database SQLite riêng; chuyển dữ liệu bằng sao lưu/khôi phục.
 
-## Mới trong 0.2.0 (thử nghiệm)
+## Mới trong 0.3.0 Beta — tệp đính kèm
+
+Từ 0.3.0, các bản 0.x phát hành như **bản chính thức có nhãn Beta** trên GitHub (không còn Pre-release), nên kể cả khi tắt **Bao gồm bản thử nghiệm** vẫn nhận được. App hiện “Beta” cạnh số phiên bản.
+
+- **Tệp đính kèm:** **Thiết bị → chọn thiết bị → Tệp đính kèm → Thêm tệp**. Nhận PDF, ảnh (JPG/PNG/WEBP/HEIC), Word, Excel; tối đa 25 MB mỗi tệp. Đặt tên hiển thị, ghi chú và gắn với một hạng mục hoặc công việc trong sổ bảo trì. Bấm vào tệp để mở bằng ứng dụng mặc định; menu có **Lưu bản sao**, **Sửa thông tin**, **Xóa tệp**. Xóa hạng mục/công việc không xóa tệp (tệp chuyển về thiết bị); xóa thiết bị thì xóa cả tệp của thiết bị đó.
+- Tệp được lưu trong database (SQLite **schema 3**, tự nâng khi mở). Sao lưu chuyển sang **ZIP định dạng 3** (`backup.json` + tệp đính kèm); vẫn khôi phục được JSON định dạng 1/2, kể cả các bản tự động của 0.2.0. Khôi phục bản 1/2 sẽ thay toàn bộ dữ liệu, nên tệp đính kèm hiện có cũng bị thay (đã có bản tự lưu trước khi khôi phục).
+- Sao lưu tự động giữ tối đa 10 bản và tối đa khoảng 500 MB, luôn giữ 2 bản mới nhất. Sao lưu trước cập nhật OTA cũng là ZIP kèm tệp.
+- Bản 0.2.0 trở về trước không đọc được sao lưu ZIP; giữ bản sao lưu cũ nếu cần quay lại.
+
+## Mới trong 0.2.0
 
 Cập nhật từ 0.1.4 qua **Cài đặt → Cập nhật ứng dụng** (giữ **Bao gồm bản thử nghiệm** bật). Không đổi schema SQLite (vẫn 2) và định dạng sao lưu (vẫn 2).
 
@@ -13,7 +22,7 @@ Cập nhật từ 0.1.4 qua **Cài đặt → Cập nhật ứng dụng** (giữ
 
 ## Cập nhật qua GitHub (từ 0.1.4)
 
-Repo hiện **Public**. Cài đè 0.1.4 một lần từ Releases, rồi dùng **Cài đặt → Cập nhật ứng dụng → Kiểm tra cập nhật → Tải bản cập nhật → Cài đặt bản cập nhật** cho các bản sau. Giữ **Bao gồm bản thử nghiệm** bật để nhận các bản 0.x. App xác minh bộ cài và tự sao lưu toàn bộ dữ liệu trước khi mở trình cài; không cài nếu xác minh/sao lưu lỗi. Android có thể hỏi quyền cài ứng dụng từ EquipmentManager. Windows hỗ trợ EXE và ZIP tại thư mục đang dùng, đóng app để thay tệp rồi mở lại.
+Repo hiện **Public**. Cài đè 0.1.4 một lần từ Releases, rồi dùng **Cài đặt → Cập nhật ứng dụng → Kiểm tra cập nhật → Tải bản cập nhật → Cài đặt bản cập nhật** cho các bản sau. Từ 0.3.0 các bản Beta không còn là Pre-release; với 0.1.4–0.2.0 cần giữ **Bao gồm bản thử nghiệm** bật. App xác minh bộ cài và tự sao lưu toàn bộ dữ liệu trước khi mở trình cài; không cài nếu xác minh/sao lưu lỗi. Android có thể hỏi quyền cài ứng dụng từ EquipmentManager. Windows hỗ trợ EXE và ZIP tại thư mục đang dùng, đóng app để thay tệp rồi mở lại.
 
 OTA chỉ dùng mạng khi bạn chọn kiểm tra/tải. Không gửi dữ liệu thiết bị lên GitHub và không cần token. Xem [hướng dẫn OTA, sao lưu và xử lý lỗi](docs/OTA-GITHUB.md).
 

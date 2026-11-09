@@ -19,6 +19,7 @@ class AppController extends ChangeNotifier {
   List<DeadlineItem> items = [];
   List<HistoryLog> history = [];
   List<ServiceRecord> serviceRecords = [];
+  List<Attachment> attachments = [];
   List<String> groups = [], providers = [];
   AppSettings settings = const AppSettings();
   bool loading = true;
@@ -29,6 +30,7 @@ class AppController extends ChangeNotifier {
     items = await repository.items();
     history = await repository.history();
     serviceRecords = await repository.serviceRecords();
+    attachments = await repository.attachments();
     settings = await repository.settings();
     groups = await repository.catalog('group');
     providers = await repository.catalog('provider');
@@ -53,6 +55,21 @@ class AppController extends ChangeNotifier {
 
   Future<void> confirmItem(DeadlineItem item) async {
     await repository.saveItem(confirmDeadline(item, clock()));
+    await load();
+  }
+
+  Future<void> addAttachment(Attachment a, Uint8List data) async {
+    await repository.addAttachment(a, data);
+    await load();
+  }
+
+  Future<void> updateAttachment(Attachment a) async {
+    await repository.updateAttachment(a);
+    await load();
+  }
+
+  Future<void> deleteAttachment(String id) async {
+    await repository.deleteAttachment(id);
     await load();
   }
 

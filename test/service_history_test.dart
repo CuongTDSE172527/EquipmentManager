@@ -111,6 +111,7 @@ void main() {
     );
     await repo.recordCompletion(completed.item, completed.history);
     await original.customStatement('DROP TABLE service_records');
+    await original.customStatement('DROP TABLE attachments');
     await original.customStatement('PRAGMA user_version = 1');
     await original.close();
     final upgraded = AppDatabase.open(file);

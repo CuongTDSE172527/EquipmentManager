@@ -3,6 +3,7 @@ package vn.cah.equipment_manager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
@@ -57,6 +58,31 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                     else -> result.notImplemented()
+                }
+            }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "vn.cah.equipment_manager/files")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "open") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                try {
+                    // Only copies the app itself wrote under cache/opened can be shared.
+                    val root = File(cacheDir, "opened").canonicalFile
+                    val file = File(call.argument<String>("path") ?: "").canonicalFile
+                    require(file.isFile && file.path.startsWith(root.path + File.separator)) { "Tệp nằm ngoài thư mục được phép." }
+                    val mime = call.argument<String>("mime") ?: "application/octet-stream"
+                    val uri = FileProvider.getUriForFile(this, "$packageName.updates", file)
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW)
+                            .setDataAndType(uri, mime)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    )
+                    result.success(null)
+                } catch (ex: ActivityNotFoundException) {
+                    result.error("NO_APP", "Máy chưa có ứng dụng mở được loại tệp này. Hãy dùng Lưu bản sao.", null)
+                } catch (ex: Exception) {
+                    result.error("OPEN_FAILED", ex.message ?: "Không mở được tệp đính kèm.", null)
                 }
             }
     }

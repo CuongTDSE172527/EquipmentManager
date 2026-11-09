@@ -1,7 +1,7 @@
-name: equipment_manager
-description: Quản lý trang thiết bị và nhắc hạn ngoại tuyến.
+﻿name: equipment_manager
+description: Quáº£n lÃ½ trang thiáº¿t bá»‹ vÃ  nháº¯c háº¡n ngoáº¡i tuyáº¿n.
 publish_to: none
-version: 0.2.0+2000
+version: 0.3.0+3000
 environment:
   sdk: '>=3.11.0 <4.0.0'
 dependencies:
