@@ -1,33 +1,47 @@
-# Nghiên cứu cập nhật qua GitHub
+# Cập nhật OTA qua GitHub — từ 0.1.4
 
-Ngày đối chiếu tài liệu: 09/11/2026. Áp dụng cho Windows 10/11 x64 và Android 8+, repo **riêng tư** `CuongTDSE172527/EquipmentManager`.
+Repo `CuongTDSE172527/EquipmentManager` đã được chủ repo chuyển sang **Public**. App đọc GitHub Releases và tải bộ cài qua HTTPS, không cần tài khoản/token. Dữ liệu thiết bị và bản sao lưu không được gửi lên mạng.
 
-## Kết luận cho 0.1.3
+## Cách dùng
 
-Có thể dùng GitHub Releases để phân phối bản cập nhật qua Internet. 0.1.3 hoàn thành nghiên cứu; **chưa có chức năng tự kiểm tra, tải hoặc cài cập nhật trong app**. Cách dùng hiện tại: đăng nhập GitHub trên trình duyệt, tải bản phát hành rồi cài đè. Dữ liệu SQLite được nâng schema khi mở app. Hãy sao lưu trước khi nâng cấp; không gỡ app cũ.
+0.1.3 và các bản trước chưa có OTA. Hãy sao lưu rồi **cài đè 0.1.4 một lần**. Từ 0.1.4:
 
-Đề xuất bước tiếp theo là cập nhật **theo yêu cầu của người dùng**, tải toàn bộ APK/bộ cài EXE, xác minh tệp rồi chuyển cho trình cài của hệ điều hành. Dữ liệu và các chức năng quản lý tiếp tục hoạt động ngoại tuyến. Không cần đưa database lên GitHub.
+1. Mở **Cài đặt → Cập nhật ứng dụng → Kiểm tra cập nhật** khi có Internet.
+2. Giữ **Bao gồm bản thử nghiệm** bật để nhận các bản 0.x. Tắt nếu chỉ muốn bản ổn định; có thể chưa có bản ổn định mới hơn.
+3. Xem phiên bản, kích thước, thay đổi rồi bấm **Tải bản cập nhật**. Có thể hủy khi tải. Tệp dở hoặc sai hash bị loại bỏ.
+4. Android: nếu chưa có quyền, bấm **Cho phép cài từ EquipmentManager**, bật quyền trong Android rồi quay lại app.
+5. Bấm **Cài đặt bản cập nhật → Sao lưu và cài đặt**. Chỉ mở trình cài sau khi sao lưu thành công. Android hiện trình cài hệ thống để bạn xác nhận; hủy màn hình đó giữ bản đang dùng.
+6. Windows: đóng các cửa sổ EquipmentManager khác. App sao lưu, thoát, cập nhật rồi mở lại. Bản đã cài dùng EXE; portable dùng ZIP, thay tệp tại thư mục đang chạy. Không di chuyển/xóa app hoặc bộ cài trong lúc cập nhật.
 
-## Điểm cần giải quyết
+Cập nhật theo lựa chọn của người dùng, không ép cài hay tự kiểm tra nền. Mất mạng không ảnh hưởng quản lý cục bộ. Cần đủ dung lượng cho bộ cài, giải nén và sao lưu.
 
-| Vấn đề | Kết quả nghiên cứu / lựa chọn đề xuất |
-|---|---|
-| Repo riêng tư | API đọc release và asset cần xác thực có quyền Contents: read. Không nhúng token của chủ repo vào APK/EXE. Có thể giữ bước tải bằng trình duyệt đã đăng nhập; nếu tích hợp trong app thì dùng xác thực riêng của người sử dụng, lưu bí mật trong Android Keystore / Windows Credential Manager. Quyền tối thiểu phải được rà soát khi chọn GitHub App hoặc token theo repo. |
-| Bản thử 0.x | `/releases/latest` bỏ qua prerelease và draft. Phải dùng danh sách releases, phân trang, loại draft, chọn kênh thử/ổn định và so sánh phiên bản theo số; không so sánh chuỗi hoặc chỉ lấy phần tử đầu. |
-| Tải asset | Dùng ID asset qua API với `Accept: application/octet-stream`, xử lý cả HTTP 200 và 302. Không chuyển tiếp Authorization sang máy chủ khác khi redirect. Đường dẫn có hạn chỉ dùng lúc tải, không lưu làm URL cập nhật cố định. |
-| Android | APK phải giữ applicationId và khóa ký, versionCode tăng dần. Android 8+ yêu cầu cho phép nguồn cài ngoài. Luồng đề xuất luôn đưa người dùng tới trình cài xác nhận, xử lý từ chối/hủy. Google Play In-App Updates không phải cơ chế cập nhật cho APK phân phối qua GitHub. |
-| Windows | Dùng bộ cài Inno hiện có để cài đè, giữ AppId và thư mục dữ liệu. Sau khi xác nhận và sao lưu, đóng app trước khi thay DLL/EXE; mở lại rồi kiểm tra phiên bản/schema. ZIP portable cần tiến trình cập nhật riêng để đợi app thoát và có khả năng khôi phục tệp nếu thay thế lỗi. |
-| MSIX | App Installer hỗ trợ kiểm tra/cài cập nhật, nhưng MSIX phải được ký và chứng chỉ được máy tin cậy. Chưa phù hợp để thay bộ cài EXE hiện tại trong khi ký số Windows còn ngoài phạm vi. |
+## Dữ liệu và sao lưu
 
-Nguồn chính thức: [GitHub Releases API](https://docs.github.com/en/rest/releases/releases), [Release Assets API](https://docs.github.com/en/rest/releases/assets), [xác thực ứng dụng GitHub](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps), [phân phối APK ngoài cửa hàng](https://developer.android.com/distribute/marketing-tools/alternative-distribution), [ký APK](https://source.android.com/docs/security/features/apksigning), [Play In-App Updates](https://developer.android.com/guide/playcore/in-app-updates), [App Installer](https://learn.microsoft.com/en-us/windows/msix/app-installer/update-settings), [ký MSIX](https://learn.microsoft.com/en-us/windows/msix/package/signing-package-overview).
+Trước khi cài, thiết bị, hạn, lịch sử bảo trì/sửa chữa, lịch sử hoàn thành, danh mục và cài đặt được đọc trong một giao dịch SQLite rồi ghi JSON. Không ghi được sao lưu thì dừng cập nhật.
 
-## Luồng đề xuất cho phiên bản triển khai OTA
+Tệp nằm trong thư mục dữ liệu app: `backups/before-update-<phiên-bản>-<mốc-thời-gian>.backup.json`. Đường dẫn cụ thể hiện trong phần cập nhật. Windows mặc định: `%APPDATA%\vn.cah\EquipmentManager\backups`. Android lưu trong thư mục riêng; vẫn nên dùng **Dữ liệu & báo cáo → Sao lưu** để giữ thêm bản ở nơi khác trước khi đổi máy/gỡ app.
 
-1. Người dùng bấm **Kiểm tra cập nhật**. App kiểm tra kết nối với timeout; khi mất mạng vẫn tiếp tục sử dụng dữ liệu cục bộ.
-2. Đọc release theo kênh đã chọn, so sánh SemVer/versionCode, chọn đúng nền tảng và kiến trúc. Chặn hạ phiên bản để tránh mở schema mới bằng app cũ.
-3. Hiện phiên bản, thay đổi, kích thước tải; chỉ tải sau khi người dùng chọn. Tải vào tệp tạm, hỗ trợ hủy và báo thiếu dung lượng.
-4. Kiểm tra SHA-256 so với asset/manifest và danh tính gói; với Android kiểm tra chứng chỉ ký. Đề xuất bổ sung manifest được ký bằng khóa cập nhật riêng và công khai khóa xác minh trong app để tăng khả năng phát hiện manifest bị thay. Checksum lấy cùng nguồn giúp kiểm tra toàn vẹn, không thay thế chữ ký của nhà phát hành.
-5. Sao lưu SQLite bằng chức năng sao lưu nhất quán, rồi mở trình cài. Không tự ghi đè database. Không đưa token vào đối số tiến trình, log hoặc báo cáo lỗi.
-6. Mở app mới, chạy migration, xác nhận phiên bản và dữ liệu. Thử đầy đủ hủy tải/cài, token hết hạn, asset thiếu, hash sai, bản thử/ổn định, thiếu dung lượng và lỗi migration trước khi bật OTA cho người dùng.
+Cài đè giữ SQLite. Không gỡ app cũ. Không hạ versionCode: app cũ có thể không đọc được schema mới.
 
-Các phương án triển khai cần chốt sau nghiên cứu: giữ tải riêng tư bằng trình duyệt; tích hợp xác thực GitHub từng người dùng; hoặc tạo kho **chỉ chứa bộ cài công khai**. Phương án công khai cần chủ repo chủ động cho phép vì thay đổi khả năng truy cập bộ cài. 0.1.3 giữ nguyên repo riêng tư và cách phân phối hiện tại.
+## Kiểm tra trước cài
+
+- Repository cố định, đọc releases có phân trang, loại draft, lọc kênh, so sánh phiên bản theo số. Không dùng `/releases/latest` vì bỏ qua prerelease.
+- Chỉ nhận đúng tên asset theo phiên bản/nền tảng, trạng thái uploaded, dung lượng hợp lệ và digest SHA-256. Metadata thiếu/sai thì dừng.
+- Tải luồng vào `.part`, giới hạn kích thước/thời gian và các máy chủ HTTPS chuyển tiếp của GitHub. Không gửi Authorization. Chỉ đổi tên khi đúng kích thước và hash; kiểm tra lại trước cài.
+- Android kiểm tra native: file trong thư mục cập nhật riêng, hash, applicationId, versionName/versionCode mới hơn, chứng chỉ ký trùng app hiện tại. FileProvider chỉ chia sẻ thư mục cập nhật. Android tiếp tục xác minh APK khi cài.
+- Windows helper xác minh hash, chờ app thoát rồi thay tệp. ZIP được kiểm tra đường dẫn giải nén/phiên bản EXE, sao lưu tệp cũ và rollback khi sao chép lỗi. EXE gọi Inno cài đè đúng thư mục. Giữ tệp riêng đặt cạnh portable.
+
+Windows ghi `update-status.json`, `installer.log` (EXE) cạnh bộ cài trong `updates/<phiên-bản>`. Nếu không tự khắc phục được, cài đè lại bộ cài đã tải hoặc tải lại từ Release. Sao lưu dữ liệu vẫn được giữ. Rollback ZIP xử lý lỗi sao chép phát hiện được; không bảo đảm tự phục hồi khi mất điện giữa chừng.
+
+EXE chưa ký số: SHA-256 kiểm tra toàn vẹn so với metadata GitHub qua HTTPS, không phải chữ ký độc lập nếu repo bị chiếm quyền. Ký số Windows/manifest ký riêng là hướng tăng cường sau này. APK giữ khóa ký hiện có.
+
+## Kiểm thử / phát hành
+
+- `test/updates_test.dart`: phiên bản/kênh/nền tảng, phân trang, metadata sai, redirect, rate limit, streaming, cache, hủy, hash sai.
+- `test/update_card_test.dart`: quyền, xác nhận, backup trước cài và chặn cài khi lỗi. `test/update_backup_test.dart`: khôi phục backup OTA.
+- `tool/test_windows_update.ps1`: portable, giữ tệp người dùng, chặn hash sai, rollback khi DLL khóa. Release thử thêm cài đè EXE trên runner Windows tạm; TestSetup không chạy trên máy phát triển.
+- Workflow **Kiểm tra cài OTA Android** dùng dữ liệu giả trên API 26/33: xác minh gói hợp lệ, chặn sai hash/phiên bản/khóa ký, mở quyền nguồn ngoài và trình cài, nâng versionCode rồi kiểm tra SQLite còn dữ liệu. APK harness không phát hành.
+
+APK/EXE/ZIP chỉ build bằng GitHub Actions. Tag mới chạy kiểm tra, build, xác minh ký APK và thử helper Windows trước khi tạo Release. GitHub cung cấp digest từng asset. Không upload dữ liệu thật/khóa ký vào repo hay Release.
+
+Tài liệu chính thức đối chiếu 09/11/2026: [GitHub Releases](https://docs.github.com/en/rest/releases/releases), [Release assets và SHA-256](https://docs.github.com/en/rest/releases/assets), [phân phối APK](https://developer.android.com/distribute/marketing-tools/alternative-distribution), [quyền cài gói](https://developer.android.com/reference/android/content/pm/PackageManager#canRequestPackageInstalls()), [FileProvider](https://developer.android.com/reference/androidx/core/content/FileProvider), [ký APK](https://source.android.com/docs/security/features/apksigning).

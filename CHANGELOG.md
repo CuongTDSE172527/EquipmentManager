@@ -1,5 +1,13 @@
 # Thay đổi
 
+## 0.1.4 — 09/11/2026
+
+- OTA từ GitHub public trong Cài đặt: kiểm tra/kênh/thay đổi/kích thước, tải có tiến độ và hủy.
+- Xác minh asset, dung lượng, SHA-256; chặn URL lạ và cài lại/hạ phiên bản. Android kiểm tra applicationId, phiên bản, khóa ký, xử lý quyền nguồn ngoài và mở trình cài hệ thống.
+- Tự sao lưu trước cài. Windows đóng app để helper cài đè EXE hoặc cập nhật ZIP tại chỗ; rollback ZIP khi sao chép lỗi, giữ sao lưu.
+- Kiểm thử native Android 8/13 và helper ZIP/EXE trong workflow Windows. Không nhúng token; dữ liệu tiếp tục ngoại tuyến.
+- Cần cài đè 0.1.4 lần đầu để có OTA cho các bản sau.
+
 ## 0.1.3 — 09/11/2026
 
 - Thêm sổ bảo trì/sửa chữa trong chi tiết từng thiết bị: ghi công việc cũ, ngày thực hiện, đơn vị, chi phí VND, chi tiết/phụ tùng/kết quả; sửa và xóa công việc nhập tay.

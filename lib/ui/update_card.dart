@@ -148,7 +148,7 @@ class _UpdateCardState extends State<UpdateCard> with WidgetsBindingObserver {
           received = 0;
           total = 0;
           message = result == null
-              ? 'Bạn đang dùng phiên bản mới nhất trong kênh đã chọn.'
+              ? 'Không có bản mới hơn trong kênh đã chọn.'
               : null;
         });
       }

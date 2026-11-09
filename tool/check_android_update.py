@@ -1,5 +1,6 @@
 """Run on the disposable Android emulator runner; all data is synthetic."""
 import hashlib
+import atexit
 import json
 import pathlib
 import re
@@ -16,6 +17,12 @@ def adb(*args, check=True, binary=False):
 
 def evidence():
     return adb("shell", "run-as", PACKAGE, "cat", "files/updates/evidence.txt", check=False)
+
+def save_evidence():
+    pathlib.Path('ota-evidence.txt').write_text(evidence())
+    pathlib.Path('ota-logcat.txt').write_text(adb('logcat', '-d', '-t', '400', check=False))
+
+atexit.register(save_evidence)
 
 adb("install", "-r", "ota-harness.apk")
 adb("shell", "run-as", PACKAGE, "mkdir", "-p", "files/updates")
@@ -52,7 +59,8 @@ for _ in range(90):
     pathlib.Path("ota-installer-window.xml").write_text(xml)
     try:
         for node in ET.fromstring(xml).iter("node"):
-            if node.attrib.get("text", "").strip().lower() == "install" and node.attrib.get("enabled") == "true":
+            if ("EquipmentManager" in xml and node.attrib.get("text", "").strip().lower() in {"install", "update"}
+                    and node.attrib.get("enabled") == "true"):
                 coordinates = list(map(int, re.findall(r"\d+", node.attrib["bounds"])))
                 adb("shell", "input", "tap", str((coordinates[0]+coordinates[2])//2), str((coordinates[1]+coordinates[3])//2))
                 break

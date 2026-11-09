@@ -2,13 +2,19 @@
 
 Ứng dụng quản lý trang thiết bị ngoại tuyến cho Windows 10/11 x64 và Android 8 trở lên. Toàn bộ giao diện bằng tiếng Việt, không cần tài khoản hoặc máy chủ. Mỗi máy có database SQLite riêng; chuyển dữ liệu bằng sao lưu/khôi phục.
 
-## Mới trong 0.1.3
+## Mới trong 0.1.4 — cập nhật qua GitHub
+
+Repo hiện **Public**. Cài đè 0.1.4 một lần từ Releases, rồi dùng **Cài đặt → Cập nhật ứng dụng → Kiểm tra cập nhật → Tải bản cập nhật → Cài đặt bản cập nhật** cho các bản sau. Giữ **Bao gồm bản thử nghiệm** bật để nhận các bản 0.x. App xác minh bộ cài và tự sao lưu toàn bộ dữ liệu trước khi mở trình cài; không cài nếu xác minh/sao lưu lỗi. Android có thể hỏi quyền cài ứng dụng từ EquipmentManager. Windows hỗ trợ EXE và ZIP tại thư mục đang dùng, đóng app để thay tệp rồi mở lại.
+
+OTA chỉ dùng mạng khi bạn chọn kiểm tra/tải. Không gửi dữ liệu thiết bị lên GitHub và không cần token. Xem [hướng dẫn OTA, sao lưu và xử lý lỗi](docs/OTA-GITHUB.md).
+
+## Lịch sử bảo trì / sửa chữa (từ 0.1.3)
 
 Mở **Thiết bị → chọn thiết bị → Lịch sử bảo trì / sửa chữa → Ghi công việc** để ghi lại việc đã làm, gồm bảo dưỡng hoặc sửa chữa, nội dung, ngày thực hiện, chi phí, đơn vị và chi tiết. Có thể sửa/xóa các công việc nhập tay, tìm kiếm, lọc theo loại/năm và xem tổng chi phí đã ghi. Các lần hoàn thành hạng mục bảo dưỡng/sửa chữa cũ cũng xuất hiện trong sổ; chúng vẫn giữ nguyên lịch sử gốc. Ghi công việc nhập tay không gia hạn hay hoàn thành hạng mục.
 
 Báo cáo **Danh sách hạng mục và lịch sử thực hiện** có thêm sheet **Bảo trì sửa chữa**. Sheet này lọc theo đơn vị và trạng thái quản lý thiết bị; bộ lọc trạng thái hạn chỉ áp dụng cho các sheet hạng mục/lịch sử hoàn thành.
 
-Bản này thay logo, giảm chuyển động và giảm tính toán lặp ở danh sách thiết bị. Xem [thay đổi đầy đủ](CHANGELOG.md) và [nghiên cứu OTA qua GitHub](docs/OTA-GITHUB.md). OTA mới ở mức nghiên cứu, chưa tự tải/cài cập nhật trong app. Để nâng từ 0.1.2, sao lưu rồi cài đè APK/EXE; giữ cùng khóa Android và không gỡ app cũ. Database tự nâng schema lên 2; vẫn khôi phục được backup phiên bản 1. Backup mới dùng định dạng 2 và cần app 0.1.3 trở lên; nếu cần quay về app cũ, dùng bản sao lưu đã tạo trước nâng cấp.
+Bản 0.1.3 thay logo, giảm chuyển động và giảm tính toán lặp ở danh sách thiết bị. Xem [thay đổi đầy đủ](CHANGELOG.md). Để nâng từ bản cũ, sao lưu rồi cài đè APK/EXE; giữ cùng khóa Android và không gỡ app cũ. Database tự nâng schema lên 2; vẫn khôi phục được backup phiên bản 1. Backup mới dùng định dạng 2 và cần app 0.1.3 trở lên; nếu cần quay về app cũ, dùng bản sao lưu đã tạo trước nâng cấp.
 
 Logo gốc ở `assets/brand/logo.svg`; tạo lại PNG/ICO bằng `flutter test tool/generate_brand_test.dart`.
 
@@ -62,14 +68,14 @@ Database dùng khóa ngoại xóa dây chuyền, WAL và busy timeout. Hoàn th�
 
 ## Phát hành tự động
 
-Repo phải để **Private**. Push/PR vào `main` chạy format, analyze, test và build thử hai nền tảng. Tag hoặc workflow phát hành cũng chạy lại các kiểm tra này; chỉ tạo Release khi cả APK và Windows thành công.
+Repo hiện **Public** theo lựa chọn của chủ repo để OTA đọc Release không cần tài khoản/token. Dữ liệu thật và khóa ký vẫn ở ngoài Git trong `private/`. Push/PR vào `main` chạy format, analyze, test và build thử hai nền tảng. Tag hoặc workflow phát hành cũng chạy lại các kiểm tra này; chỉ tạo Release khi cả APK và Windows thành công.
 
 ```sh
 git add .
 git commit -m "Mô tả thay đổi"
 git push origin main
-git tag v0.1.4
-git push origin v0.1.4
+git tag v0.1.5
+git push origin v0.1.5
 ```
 
 Trong GitHub → Actions → **Phát hành EquipmentManager → Run workflow**, có thể nhập phiên bản để build thử; để **Tạo Release** tắt nếu chỉ muốn tải artifacts thử. Khi chạy bằng tag, phiên bản luôn lấy từ tag. APK release phải có khóa ký; thiếu Secrets thì job thất bại, không dùng khóa debug.
