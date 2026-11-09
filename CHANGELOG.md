@@ -1,5 +1,14 @@
 # Thay đổi
 
+## 0.2.0 — thử nghiệm
+
+- Hàng chờ **Cần xác nhận**: thẻ trên Tổng quan, bộ lọc riêng, thao tác Xác nhận dữ liệu (xem trạng thái sau xác nhận; Xác nhận đúng giữ nguyên hạn và ghi ngày xác nhận vào ghi chú, hoặc Sửa hạn). Lịch sử hoàn thành không bị ghi thêm.
+- **Tự sao lưu xoay vòng** khi mở app: mặc định 7 ngày/lần, giữ 10 bản trong `backups/auto`, bỏ qua database trống. Khôi phục từ bản tự động trong Dữ liệu & báo cáo. Mọi lần khôi phục đều tự lưu dữ liệu hiện tại trước. Nhắc sao lưu ra ngoài vẫn tính riêng.
+- **Kế hoạch đến hạn theo kỳ** (tháng này/sau, quý này/sau) xuất Excel: gom theo đơn vị thực hiện, tùy chọn kèm mục quá hạn, sheet Tổng hợp. Hạn MM/yyyy tính đến cuối tháng; thiết bị không còn sử dụng, mục loại trừ/đã xong/chưa có ngày không vào kế hoạch.
+- **Tự kiểm tra cập nhật** khi mở app, mặc định tắt, tối đa 1 lần/ngày, chỉ báo có bản mới. Lưu lựa chọn Bao gồm bản thử nghiệm.
+- Không đổi schema SQLite (2) và định dạng sao lưu (2); cài đặt mới nằm trong payload cài đặt và có giá trị mặc định khi đọc dữ liệu cũ.
+- Workflow phát hành thử helper Windows từ bộ cài 0.1.4.
+
 ## 0.1.4 — 09/11/2026
 
 - OTA từ GitHub public trong Cài đặt: kiểm tra/kênh/thay đổi/kích thước, tải có tiến độ và hủy.

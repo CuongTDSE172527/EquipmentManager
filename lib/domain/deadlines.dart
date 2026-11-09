@@ -122,6 +122,19 @@ DeadlineStatus statusOf(
   );
 }
 
+/// Accept the recorded data as checked. Dates are never changed here; the note
+/// keeps a dated trace because HistoryLog is reserved for real completions.
+DeadlineItem confirmDeadline(DeadlineItem item, DateTime today) {
+  if (!item.requiresConfirmation) {
+    throw StateError('Hạng mục không ở trạng thái Cần xác nhận.');
+  }
+  final trace = 'Đã xác nhận dữ liệu ngày ${displayDate(dateOnly(today))}.';
+  return item.copy({
+    'requiresConfirmation': false,
+    'note': [item.note.trim(), trace].where((s) => s.isNotEmpty).join('\n'),
+  });
+}
+
 ({DateTime date, DatePrecision precision}) parseVietnameseDate(String raw) {
   final text = raw.trim();
   final month = RegExp(r'^(\d{1,2})/(\d{4})$').firstMatch(text);

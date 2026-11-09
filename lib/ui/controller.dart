@@ -51,6 +51,16 @@ class AppController extends ChangeNotifier {
     await load();
   }
 
+  Future<void> confirmItem(DeadlineItem item) async {
+    await repository.saveItem(confirmDeadline(item, clock()));
+    await load();
+  }
+
+  Future<void> updateSettings(Json changes) async {
+    await repository.saveSettings((await repository.settings()).copy(changes));
+    await load();
+  }
+
   Future<void> deleteServiceRecord(String id) async {
     await repository.deleteServiceRecord(id);
     await load();

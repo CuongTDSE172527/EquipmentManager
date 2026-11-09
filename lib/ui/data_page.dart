@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../domain/models.dart';
 import '../domain/deadlines.dart';
 import '../domain/importing.dart';
+import '../domain/planning.dart';
+import '../services/auto_backup.dart';
 import '../services/spreadsheets.dart';
 import 'controller.dart';
 import 'forms.dart';
@@ -24,16 +26,24 @@ Future<bool> saveBytes(String filename, Uint8List bytes) async {
 }
 
 class DataPage extends StatefulWidget {
-  const DataPage({super.key, required this.controller, required this.onError});
+  const DataPage({
+    super.key,
+    required this.controller,
+    required this.onError,
+    this.autoBackup,
+  });
   final AppController controller;
   final ValueChanged<String> onError;
+  final AutoBackupService? autoBackup;
   @override
   State<DataPage> createState() => _DataPageState();
 }
 
 class _DataPageState extends State<DataPage> {
-  bool busy = false, includeArchived = false;
+  bool busy = false, includeArchived = false, includeOverdue = true;
+  PlanPeriod period = PlanPeriod.nextMonth;
   String? provider;
+  late final auto = widget.autoBackup ?? AutoBackupService();
   DeadlineStatus? status;
   AppController get c => widget.controller;
   final sheets = SpreadsheetService();
@@ -130,9 +140,77 @@ class _DataPageState extends State<DataPage> {
       ),
       _action(
         'Khôi phục từ bản sao lưu',
-        'Kiểm tra toàn bộ file trước khi thay dữ liệu hiện tại. Hãy sao lưu trước khi khôi phục.',
+        'Kiểm tra toàn bộ file trước khi thay dữ liệu hiện tại. Dữ liệu hiện tại được tự lưu một bản trước khi khôi phục.',
         Icons.restore_outlined,
         () => _run(_restore),
+      ),
+      _action(
+        'Khôi phục từ bản sao lưu tự động',
+        'Chọn một trong 10 bản tự động gần nhất trên máy này.',
+        Icons.history_outlined,
+        () => _run(_restoreAuto),
+      ),
+      const SizedBox(height: 24),
+      Text(
+        'Kế hoạch đến hạn theo kỳ',
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 16,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          SizedBox(
+            width: 260,
+            child: DropdownButtonFormField<PlanPeriod>(
+              initialValue: period,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Kỳ kế hoạch'),
+              items: [
+                for (final p in PlanPeriod.values)
+                  DropdownMenuItem(
+                    value: p,
+                    child: Text(
+                      '${p.label} (${planRange(p, c.clock()).title.toLowerCase()})',
+                    ),
+                  ),
+              ],
+              onChanged: busy ? null : (v) => setState(() => period = v!),
+            ),
+          ),
+          SizedBox(
+            width: 340,
+            child: SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Kèm hạng mục đã quá hạn chưa xử lý'),
+              value: includeOverdue,
+              onChanged: busy
+                  ? null
+                  : (v) => setState(() => includeOverdue = v),
+            ),
+          ),
+        ],
+      ),
+      _action(
+        'Xuất kế hoạch đến hạn',
+        'Thiết bị đang sử dụng, gom theo đơn vị thực hiện, kèm tổng hợp số lượng và chi phí lần trước để tham khảo.',
+        Icons.event_available_outlined,
+        () => _run(() async {
+          final range = planRange(period, c.clock());
+          final planned = plannedDeadlines(
+            c.tracked,
+            period,
+            c.clock(),
+            includeOverdue: includeOverdue,
+          );
+          if (await saveBytes(
+            'EquipmentManager-ke-hoach-${range.start.year}-${range.start.month.toString().padLeft(2, '0')}-${period.name}.xlsx',
+            sheets.planReport(planned, range, c.settings),
+          )) {
+            widget.onError('Đã xuất ${planned.length} hạng mục.');
+          }
+        }),
       ),
       const SizedBox(height: 24),
       Text('Xuất báo cáo Excel', style: Theme.of(context).textTheme.titleLarge),
@@ -246,15 +324,73 @@ class _DataPageState extends State<DataPage> {
     if (bytes.length > 50 * 1024 * 1024) {
       throw const FormatException('File sao lưu quá lớn.');
     }
-    final backup = jsonDecode(utf8.decode(bytes)) as Json;
+    await _confirmAndRestore(jsonDecode(utf8.decode(bytes)) as Json);
+  }
+
+  String _time(DateTime t) =>
+      '${displayDate(t)} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  Future<void> _restoreAuto() async {
+    final files = await auto.list();
+    if (!mounted) return;
+    if (files.isEmpty) {
+      widget.onError('Chưa có bản sao lưu tự động trên máy này.');
+      return;
+    }
+    final chosen = await showInstantDialog<AutoBackupFile>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Chọn bản sao lưu tự động'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final f in files)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      f.beforeRestore
+                          ? Icons.restore_page_outlined
+                          : Icons.history_outlined,
+                    ),
+                    title: Text(_time(f.created)),
+                    subtitle: Text(
+                      '${f.beforeRestore ? 'Tạo trước khi khôi phục • ' : ''}${(f.size / 1024).ceil()} KB',
+                    ),
+                    onTap: () => Navigator.pop(context, f),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+        ],
+      ),
+    );
+    if (chosen == null) return;
+    await _confirmAndRestore(await auto.read(chosen));
+  }
+
+  /// The current data is saved first so a wrong restore can be undone. If that
+  /// copy cannot be written, the restore stops before touching the database.
+  Future<void> _confirmAndRestore(Json backup) async {
     if (!mounted) return;
     if (!await confirmAction(
       context,
       'Khôi phục và thay dữ liệu hiện tại?',
-      'File chứa ${(backup['equipment'] as List?)?.length ?? 0} thiết bị và ${(backup['items'] as List?)?.length ?? 0} hạng mục. Dữ liệu hiện tại sẽ được thay bằng bản sao lưu.',
+      'File chứa ${(backup['equipment'] as List?)?.length ?? 0} thiết bị và ${(backup['items'] as List?)?.length ?? 0} hạng mục. Dữ liệu hiện tại sẽ được lưu một bản tự động rồi thay bằng bản sao lưu.',
       action: 'Khôi phục',
     )) {
       return;
+    }
+    if (c.equipment.isNotEmpty) {
+      await auto.create(c.repository, DateTime.now(), beforeRestore: true);
     }
     await c.repository.restore(backup);
     await c.load();

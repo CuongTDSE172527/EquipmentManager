@@ -7,6 +7,7 @@ import 'package:xml/xml.dart';
 import '../domain/models.dart';
 import '../domain/deadlines.dart';
 import '../domain/importing.dart';
+import '../domain/planning.dart';
 import '../domain/service_history.dart';
 
 const trackingColumns = [
@@ -618,6 +619,108 @@ class SpreadsheetService {
       }
     }
     return _finish(book, repeatRows: 4);
+  }
+
+  /// Work plan for a calendar period, grouped by provider for meetings and
+  /// cost planning. Past cost is shown only as a reference.
+  Uint8List planReport(
+    List<PlannedDeadline> rows,
+    PlanRange range,
+    AppSettings settings,
+  ) {
+    final book = _book();
+    final sheet = book['Kế hoạch'];
+    _title(
+      sheet,
+      settings,
+      'KẾ HOẠCH CÔNG VIỆC ĐẾN HẠN ${range.title} (${displayDate(range.start)} – ${displayDate(range.end)})',
+      9,
+    );
+    _row(sheet, [
+      'STT',
+      'Thiết bị',
+      'Biển số',
+      'Loại',
+      'Hạng mục',
+      'Hạn',
+      'Tình trạng',
+      'Chi phí lần trước (VND)',
+      'Ghi chú',
+    ]);
+    final providers = <String>[];
+    for (final r in rows) {
+      if (!providers.contains(r.row.item.provider)) {
+        providers.add(r.row.item.provider);
+      }
+    }
+    var index = 0;
+    for (final provider in providers) {
+      final group = rows.where((r) => r.row.item.provider == provider).toList();
+      _row(sheet, [
+        '${provider.isEmpty ? 'Chưa chọn đơn vị thực hiện' : provider} (${group.length} hạng mục)',
+      ]);
+      sheet.merge(
+        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sheet.maxRows - 1),
+        CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: sheet.maxRows - 1),
+      );
+      for (final r in group) {
+        _row(sheet, [
+          ++index,
+          r.row.equipment.name,
+          r.row.equipment.displayPlate,
+          r.row.item.kind.label,
+          r.row.item.title,
+          _due(r.row.item),
+          [
+            r.overdue ? 'Quá hạn, chưa xử lý' : 'Đến hạn trong kỳ',
+            if (r.row.item.requiresConfirmation) 'Cần xác nhận',
+          ].join(' • '),
+          r.row.item.cost,
+          r.row.item.note,
+        ]);
+      }
+    }
+    if (rows.isEmpty) {
+      _row(sheet, ['Không có hạng mục đến hạn trong kỳ.']);
+    }
+    _style(sheet, 3, 9);
+    _money(sheet, 7);
+    final summary = book['Tổng hợp'];
+    _title(summary, settings, 'TỔNG HỢP THEO ĐƠN VỊ ${range.title}', 5);
+    _row(summary, [
+      'STT',
+      'Đơn vị thực hiện',
+      'Quá hạn',
+      'Đến hạn trong kỳ',
+      'Chi phí lần trước (VND)',
+    ]);
+    for (var n = 0; n < providers.length; n++) {
+      final group = rows.where((r) => r.row.item.provider == providers[n]);
+      final costs = group.map((r) => r.row.item.cost).whereType<int>();
+      _row(summary, [
+        n + 1,
+        providers[n].isEmpty ? 'Chưa chọn đơn vị' : providers[n],
+        group.where((r) => r.overdue).length,
+        group.where((r) => !r.overdue).length,
+        costs.isEmpty ? null : costs.reduce((a, b) => a + b),
+      ]);
+    }
+    _style(summary, 3, 5);
+    _money(summary, 4);
+    return _finish(book, repeatRows: 4);
+  }
+
+  void _money(Sheet sheet, int column) {
+    for (var row = 4; row < sheet.maxRows; row++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: column, rowIndex: row),
+      );
+      if (cell.value is IntCellValue) {
+        cell.cellStyle = cell.cellStyle!.copyWith(
+          numberFormat: NumFormat.custom(formatCode: '#,##0 "VND"'),
+        );
+      }
+    }
   }
 }
 

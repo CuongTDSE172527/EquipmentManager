@@ -341,6 +341,8 @@ void validateSettings(AppSettings s) {
       s.notifyHour > 23 ||
       s.notifyMinute < 0 ||
       s.notifyMinute > 59 ||
+      s.autoBackupDays < 1 ||
+      s.autoBackupDays > 365 ||
       !['system', 'light', 'dark'].contains(s.theme)) {
     throw const FormatException('Cài đặt không hợp lệ.');
   }

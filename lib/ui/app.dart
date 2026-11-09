@@ -6,7 +6,11 @@ import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../domain/models.dart';
 import '../domain/deadlines.dart';
+import '../domain/updates.dart';
+import '../services/auto_backup.dart';
 import '../services/notifications.dart';
+import '../services/update_installer.dart';
+import '../services/updates.dart';
 import 'controller.dart';
 import 'forms.dart';
 import 'data_page.dart';
@@ -60,9 +64,17 @@ class EquipmentManagerApp extends StatefulWidget {
     super.key,
     required this.controller,
     required this.notifications,
+    this.autoBackup,
+    this.updates,
+    this.installer,
   });
   final AppController controller;
   final NotificationService notifications;
+
+  /// Null disables automatic backups (tests); main passes the real service.
+  final AutoBackupService? autoBackup;
+  final UpdateService? updates;
+  final UpdateInstaller? installer;
   @override
   State<EquipmentManagerApp> createState() => _AppState();
 }
@@ -73,6 +85,8 @@ class _AppState extends State<EquipmentManagerApp> {
   final searchFocus = FocusNode();
   int page = 0, sortColumn = 0;
   bool alertsOnly = false, byProvider = false, ascending = true;
+  bool confirmOnly = false;
+  AppUpdate? pendingUpdate;
   DeadlineStatus? status;
   ItemKind? kind;
   String? group, provider;
@@ -87,6 +101,10 @@ class _AppState extends State<EquipmentManagerApp> {
     unawaited(_initialize());
   }
 
+  void _later(String text) => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted) _message(text);
+  });
+
   Future<void> _initialize() async {
     try {
       await widget.notifications.initialize(onOpen: _openAlerts);
@@ -94,17 +112,54 @@ class _AppState extends State<EquipmentManagerApp> {
       if (c.settings.notificationsEnabled) {
         await widget.notifications.refresh(c.settings);
       }
+    } catch (e) {
+      _later(e.toString());
+    }
+    final auto = widget.autoBackup;
+    if (auto != null) {
+      try {
+        if (await auto.runIfDue(c.repository, c.clock()) != null) {
+          await c.load();
+        }
+      } catch (e) {
+        _later('Chưa tự sao lưu được: $e');
+      }
+    }
+    try {
       final info = await PackageInfo.fromPlatform();
       if (mounted) setState(() => version = info.version);
+      if (updateCheckDue(c.settings, c.clock())) {
+        await _checkUpdate(info.version);
+      }
     } catch (e) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _message(e.toString());
-      });
+      _later(e.toString());
+    }
+  }
+
+  /// Opt-in daily check. It only reports a newer version; downloading and
+  /// installing always stay a user action in Settings.
+  Future<void> _checkUpdate(String running) async {
+    final current = AppVersion.tryParse(running);
+    if (current == null) return;
+    try {
+      final target = await (widget.installer ?? const UpdateInstaller())
+          .target();
+      final result = await (widget.updates ?? UpdateService()).check(
+        current,
+        target,
+        includePrereleases: c.settings.updateIncludePrereleases,
+        cancel: UpdateCancellation(),
+      );
+      await c.updateSettings({'lastUpdateCheck': c.clock().toIso8601String()});
+      if (mounted) setState(() => pendingUpdate = result);
+    } catch (_) {
+      // Offline or rate-limited: stay quiet and try again on the next launch.
     }
   }
 
   void _resetFilters() {
     search.clear();
+    confirmOnly = false;
     group = null;
     provider = null;
     kind = null;
@@ -147,8 +202,84 @@ class _AppState extends State<EquipmentManagerApp> {
     page = n;
     search.clear();
     alertsOnly = false;
+    confirmOnly = false;
     status = null;
   });
+
+  void _openConfirmations() => setState(() {
+    _resetFilters();
+    page = 1;
+    confirmOnly = true;
+  });
+
+  Widget _navIcon(int n, IconData icon) => n == 4 && pendingUpdate != null
+      ? Badge(label: const Text('Mới'), child: Icon(icon))
+      : Icon(icon);
+
+  void _confirmData(BuildContext context, TrackedDeadline r) => unawaited(
+    _run(() async {
+      final after = statusOf(
+        confirmDeadline(r.item, c.clock()),
+        r.equipment,
+        c.settings,
+        c.clock(),
+      );
+      final choice = await showInstantDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Xác nhận dữ liệu hạng mục'),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${r.equipment.name} • ${r.item.title}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text('Hạn đang ghi: ${_dueLabel(r.item)}'),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text('Sau khi xác nhận:'),
+                    StatusChip(after),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Chỉ xác nhận khi đã đối chiếu giấy tờ. Hạn được giữ nguyên; ghi chú lưu ngày xác nhận. Nếu hạn chưa đúng, chọn Sửa hạn.',
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'edit'),
+              child: const Text('Sửa hạn'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, 'confirm'),
+              child: const Text('Xác nhận đúng'),
+            ),
+          ],
+        ),
+      );
+      if (choice == 'edit' && context.mounted) {
+        await itemForm(context, c, item: r.item);
+      } else if (choice == 'confirm') {
+        await c.confirmItem(r.item);
+        _message('Đã xác nhận. Trạng thái hiện tại: ${after.label}.');
+      }
+    }),
+  );
   void _new() {
     final ctx = navigator.currentContext!;
     unawaited(_run(() => page == 1 ? itemForm(ctx, c) : equipmentForm(ctx, c)));
@@ -330,7 +461,7 @@ class _AppState extends State<EquipmentManagerApp> {
                                         selectedColor: Colors.white,
                                         textColor: const Color(0xFFB5CBD5),
                                         iconColor: const Color(0xFFB5CBD5),
-                                        leading: Icon(icons[n]),
+                                        leading: _navIcon(n, icons[n]),
                                         title: Text(titles[n]),
                                         onTap: () => _navigate(n),
                                       ),
@@ -449,11 +580,15 @@ class _AppState extends State<EquipmentManagerApp> {
                                         3 => DataPage(
                                           controller: c,
                                           onError: _message,
+                                          autoBackup: widget.autoBackup,
                                         ),
                                         _ => SettingsPage(
                                           controller: c,
                                           notifications: widget.notifications,
                                           onError: _message,
+                                          pendingUpdate: pendingUpdate,
+                                          updates: widget.updates,
+                                          installer: widget.installer,
                                         ),
                                       },
                               ),
@@ -482,7 +617,7 @@ class _AppState extends State<EquipmentManagerApp> {
                           destinations: [
                             for (var n = 0; n < titles.length; n++)
                               NavigationDestination(
-                                icon: Icon(icons[n]),
+                                icon: _navIcon(n, icons[n]),
                                 label: titles[n],
                               ),
                           ],
@@ -531,6 +666,14 @@ class _AppState extends State<EquipmentManagerApp> {
         )
         .toList();
     final backup = c.settings.lastBackup;
+    final pendingConfirm = rows
+        .where(
+          (r) =>
+              r.item.requiresConfirmation &&
+              r.status != DeadlineStatus.excluded &&
+              r.status != DeadlineStatus.done,
+        )
+        .length;
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -646,16 +789,44 @@ class _AppState extends State<EquipmentManagerApp> {
           },
         ),
         const SizedBox(height: 24),
+        if (pendingUpdate != null)
+          Card(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            child: ListTile(
+              leading: const Icon(Icons.system_update_outlined),
+              title: Text('Có bản cập nhật ${pendingUpdate!.version}'),
+              subtitle: const Text(
+                'Ứng dụng chỉ kiểm tra. Bạn chủ động tải và cài trong Cài đặt.',
+              ),
+              trailing: TextButton(
+                onPressed: () => _navigate(4),
+                child: const Text('Xem'),
+              ),
+            ),
+          ),
+        if (pendingConfirm > 0)
+          Card(
+            color: Theme.of(context).colorScheme.tertiaryContainer,
+            child: ListTile(
+              leading: const Icon(Icons.fact_check_outlined),
+              title: Text('$pendingConfirm mốc cần xác nhận'),
+              subtitle: const Text(
+                'Đối chiếu giấy tờ rồi xác nhận đúng hoặc sửa hạn.',
+              ),
+              trailing: TextButton(
+                onPressed: _openConfirmations,
+                child: const Text('Xác nhận'),
+              ),
+            ),
+          ),
         if (backup == null || calendarDaysBetween(backup, c.clock()) >= 30)
           Card(
             color: Theme.of(context).colorScheme.secondaryContainer,
             child: ListTile(
               leading: const Icon(Icons.backup_outlined),
-              title: const Text('Sao lưu dữ liệu định kỳ'),
+              title: const Text('Sao lưu ra ngoài định kỳ'),
               subtitle: Text(
-                backup == null
-                    ? 'Bạn chưa tạo bản sao lưu. Hãy lưu một bản ở nơi an toàn.'
-                    : 'Lần sao lưu gần nhất: ${displayDate(backup)}.',
+                '${backup == null ? 'Bạn chưa lưu bản sao lưu ra ngoài.' : 'Lần sao lưu ra ngoài gần nhất: ${displayDate(backup)}.'} Bản tự động chỉ nằm trên máy này; hãy lưu thêm ra USB hoặc Drive.',
               ),
               trailing: TextButton(
                 onPressed: () => setState(() => page = 3),
@@ -741,6 +912,8 @@ class _AppState extends State<EquipmentManagerApp> {
         (kind == null || r.item.kind == kind) &&
         (status == null || r.status == status) &&
         (management == null || r.equipment.managementStatus == management) &&
+        (!confirmOnly ||
+            (r.item.requiresConfirmation && r.status != DeadlineStatus.done)) &&
         (!alertsOnly ||
             [
               DeadlineStatus.overdue,
@@ -811,6 +984,17 @@ class _AppState extends State<EquipmentManagerApp> {
                               (v) => v.label,
                               (v) => management = v,
                             ),
+                            FilterChip(
+                              label: const Text('Chỉ mốc cần xác nhận'),
+                              selected: confirmOnly,
+                              onSelected: (v) => setState(() {
+                                confirmOnly = v;
+                                if (v) {
+                                  alertsOnly = false;
+                                  status = null;
+                                }
+                              }),
+                            ),
                           ],
                         );
                         if (wide) return filters;
@@ -844,7 +1028,7 @@ class _AppState extends State<EquipmentManagerApp> {
                       children: [
                         Expanded(
                           child: Text(
-                            '${rows.length} hạng mục${alertsOnly ? ' • Chỉ cảnh báo' : ''}',
+                            '${rows.length} hạng mục${alertsOnly ? ' • Chỉ cảnh báo' : ''}${confirmOnly ? ' • Cần xác nhận' : ''}',
                           ),
                         ),
                         Flexible(
@@ -860,16 +1044,7 @@ class _AppState extends State<EquipmentManagerApp> {
                         ),
                         IconButton(
                           tooltip: 'Xóa bộ lọc',
-                          onPressed: () => setState(() {
-                            search.clear();
-                            group = null;
-                            kind = null;
-                            status = null;
-                            provider = null;
-                            management = ManagementStatus.active;
-                            alertsOnly = false;
-                            byProvider = false;
-                          }),
+                          onPressed: () => setState(_resetFilters),
                           icon: const Icon(Icons.filter_alt_off_outlined),
                         ),
                       ],
@@ -926,6 +1101,8 @@ class _AppState extends State<EquipmentManagerApp> {
       : i.expiredWithoutDate
       ? 'Đã hết, chưa rõ ngày'
       : displayDate(i.dueDate, i.precision);
+  bool _needsConfirm(TrackedDeadline r) =>
+      r.item.requiresConfirmation && !r.item.isDone;
   Widget _deadlineCard(BuildContext context, TrackedDeadline r) => Card(
     margin: const EdgeInsets.only(bottom: 10),
     child: Padding(
@@ -959,6 +1136,12 @@ class _AppState extends State<EquipmentManagerApp> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               StatusChip(r.status),
+              if (_needsConfirm(r))
+                const Chip(
+                  avatar: Icon(Icons.fact_check_outlined, size: 18),
+                  label: Text('Cần xác nhận'),
+                  visualDensity: VisualDensity.compact,
+                ),
               Text(_dueLabel(r.item)),
               if (r.item.provider.isNotEmpty) Text(r.item.provider),
             ],
@@ -971,6 +1154,12 @@ class _AppState extends State<EquipmentManagerApp> {
                 onPressed: () => _details(context, r.equipment),
                 child: const Text('Xem thiết bị'),
               ),
+              if (_needsConfirm(r))
+                TextButton.icon(
+                  onPressed: () => _confirmData(context, r),
+                  icon: const Icon(Icons.fact_check_outlined, size: 18),
+                  label: const Text('Xác nhận dữ liệu'),
+                ),
               if (!r.item.isDone)
                 TextButton.icon(
                   onPressed: () =>
@@ -1017,7 +1206,7 @@ class _AppState extends State<EquipmentManagerApp> {
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: PaginatedDataTable(
         key: ValueKey(
-          '${search.text}-$group-$kind-$status-$provider-$management-${rows.length}-$byProvider',
+          '${search.text}-$group-$kind-$status-$provider-$management-${rows.length}-$byProvider-$confirmOnly',
         ),
         header: const Text('Danh sách hạng mục'),
         rowsPerPage: 10,
@@ -1060,6 +1249,12 @@ class _AppState extends State<EquipmentManagerApp> {
               DataCell(
                 Row(
                   children: [
+                    if (_needsConfirm(r))
+                      IconButton(
+                        tooltip: 'Xác nhận dữ liệu',
+                        onPressed: () => _confirmData(context, r),
+                        icon: const Icon(Icons.fact_check_outlined),
+                      ),
                     if (!r.item.isDone)
                       IconButton(
                         tooltip: 'Gia hạn / Hoàn thành',

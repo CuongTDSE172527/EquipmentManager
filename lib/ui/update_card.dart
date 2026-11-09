@@ -16,8 +16,12 @@ class UpdateCard extends StatefulWidget {
     this.service,
     this.installer,
     this.packageInfo,
+    this.initialUpdate,
   });
   final AppController controller;
+
+  /// Found by the opt-in check on launch; still requires the user to download.
+  final AppUpdate? initialUpdate;
   final UpdateService? service;
   final UpdateInstaller? installer;
   final Future<PackageInfo> Function()? packageInfo;
@@ -41,8 +45,30 @@ class _UpdateCardState extends State<UpdateCard> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    includePrereleases = widget.controller.settings.updateIncludePrereleases;
+    update = widget.initialUpdate;
     WidgetsBinding.instance.addObserver(this);
     unawaited(_initialize());
+  }
+
+  @override
+  void didUpdateWidget(UpdateCard old) {
+    super.didUpdateWidget(old);
+    final found = widget.initialUpdate;
+    if (found != null &&
+        found != old.initialUpdate &&
+        !busy &&
+        update == null) {
+      update = found;
+    }
+  }
+
+  Future<void> _saveSetting(String key, bool value) async {
+    try {
+      await widget.controller.updateSettings({key: value});
+    } catch (e) {
+      if (mounted) setState(() => error = e.toString());
+    }
   }
 
   Future<void> _initialize() async {
@@ -292,12 +318,26 @@ class _UpdateCardState extends State<UpdateCard> with WidgetsBindingObserver {
             value: includePrereleases,
             onChanged: busy
                 ? null
-                : (value) => setState(() {
-                    includePrereleases = value;
-                    update = null;
-                    downloaded = null;
-                    message = null;
-                  }),
+                : (value) {
+                    setState(() {
+                      includePrereleases = value;
+                      update = null;
+                      downloaded = null;
+                      message = null;
+                    });
+                    unawaited(_saveSetting('updateIncludePrereleases', value));
+                  },
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Tự kiểm tra khi mở ứng dụng'),
+            subtitle: const Text(
+              'Tối đa 1 lần/ngày, chỉ báo khi có bản mới. Không tự tải hoặc cài. Tắt để ứng dụng không dùng Internet.',
+            ),
+            value: widget.controller.settings.autoUpdateCheck,
+            onChanged: busy
+                ? null
+                : (value) => unawaited(_saveSetting('autoUpdateCheck', value)),
           ),
           Wrap(
             spacing: 10,

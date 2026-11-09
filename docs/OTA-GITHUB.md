@@ -13,7 +13,7 @@ Repo `CuongTDSE172527/EquipmentManager` đã được chủ repo chuyển sang *
 5. Bấm **Cài đặt bản cập nhật → Sao lưu và cài đặt**. Chỉ mở trình cài sau khi sao lưu thành công. Android hiện trình cài hệ thống để bạn xác nhận; hủy màn hình đó giữ bản đang dùng.
 6. Windows: đóng các cửa sổ EquipmentManager khác. App sao lưu, thoát, cập nhật rồi mở lại. Bản đã cài dùng EXE; portable dùng ZIP, thay tệp tại thư mục đang chạy. Không di chuyển/xóa app hoặc bộ cài trong lúc cập nhật.
 
-Cập nhật theo lựa chọn của người dùng, không ép cài hay tự kiểm tra nền. Mất mạng không ảnh hưởng quản lý cục bộ. Cần đủ dung lượng cho bộ cài, giải nén và sao lưu.
+Cập nhật theo lựa chọn của người dùng, không ép cài. Từ 0.2.0 có tùy chọn **Tự kiểm tra khi mở ứng dụng** (mặc định tắt): tối đa 1 lần/ngày, chỉ đọc danh sách Releases và báo có bản mới; không tự tải hay cài, lỗi mạng thì im lặng và thử lại lần mở sau. Lựa chọn **Bao gồm bản thử nghiệm** được lưu và dùng cho cả kiểm tra tự động. Mất mạng không ảnh hưởng quản lý cục bộ. Cần đủ dung lượng cho bộ cài, giải nén và sao lưu.
 
 ## Dữ liệu và sao lưu
 

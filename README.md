@@ -2,7 +2,16 @@
 
 Ứng dụng quản lý trang thiết bị ngoại tuyến cho Windows 10/11 x64 và Android 8 trở lên. Toàn bộ giao diện bằng tiếng Việt, không cần tài khoản hoặc máy chủ. Mỗi máy có database SQLite riêng; chuyển dữ liệu bằng sao lưu/khôi phục.
 
-## Mới trong 0.1.4 — cập nhật qua GitHub
+## Mới trong 0.2.0 (thử nghiệm)
+
+Cập nhật từ 0.1.4 qua **Cài đặt → Cập nhật ứng dụng** (giữ **Bao gồm bản thử nghiệm** bật). Không đổi schema SQLite (vẫn 2) và định dạng sao lưu (vẫn 2).
+
+- **Hàng chờ Cần xác nhận:** Tổng quan hiện số mốc cần xác nhận; bấm **Xác nhận** để lọc riêng. Mỗi mốc có **Xác nhận dữ liệu**: xem trạng thái sau xác nhận, rồi chọn **Xác nhận đúng** (giữ nguyên hạn, ghi ngày xác nhận vào ghi chú) hoặc **Sửa hạn**. Theo dõi hạn có thêm bộ lọc **Chỉ mốc cần xác nhận**.
+- **Tự sao lưu xoay vòng:** khi mở app, nếu đã quá chu kỳ (mặc định 7 ngày, chỉnh trong Cài đặt), app lưu một bản JSON vào `backups/auto` trong thư mục dữ liệu và giữ 10 bản gần nhất. Database trống thì bỏ qua để không đẩy mất bản có dữ liệu. Khôi phục bằng **Dữ liệu & báo cáo → Khôi phục từ bản sao lưu tự động**. Mọi lần khôi phục đều tự lưu dữ liệu hiện tại trước; không lưu được thì dừng. Bản tự động nằm cùng máy, nên vẫn phải sao lưu ra ngoài; nhắc trên Tổng quan chỉ tính bản sao lưu ra ngoài.
+- **Kế hoạch đến hạn theo kỳ:** **Dữ liệu & báo cáo → Xuất kế hoạch đến hạn** cho tháng này/tháng sau/quý này/quý sau. Gom theo đơn vị thực hiện, có thể kèm mục quá hạn chưa xử lý, thêm sheet **Tổng hợp** theo đơn vị và chi phí lần trước để tham khảo. Mốc cần xác nhận được xếp theo ngày gốc và ghi rõ; mục chưa có ngày không đưa vào kế hoạch.
+- **Tự kiểm tra cập nhật (mặc định tắt):** bật trong **Cài đặt → Cập nhật ứng dụng**. Khi mở app, tối đa 1 lần/ngày, app chỉ báo có bản mới trên Tổng quan và thanh điều hướng; tải/cài vẫn do người dùng bấm. Tùy chọn **Bao gồm bản thử nghiệm** nay được lưu lại.
+
+## Cập nhật qua GitHub (từ 0.1.4)
 
 Repo hiện **Public**. Cài đè 0.1.4 một lần từ Releases, rồi dùng **Cài đặt → Cập nhật ứng dụng → Kiểm tra cập nhật → Tải bản cập nhật → Cài đặt bản cập nhật** cho các bản sau. Giữ **Bao gồm bản thử nghiệm** bật để nhận các bản 0.x. App xác minh bộ cài và tự sao lưu toàn bộ dữ liệu trước khi mở trình cài; không cài nếu xác minh/sao lưu lỗi. Android có thể hỏi quyền cài ứng dụng từ EquipmentManager. Windows hỗ trợ EXE và ZIP tại thư mục đang dùng, đóng app để thay tệp rồi mở lại.
 

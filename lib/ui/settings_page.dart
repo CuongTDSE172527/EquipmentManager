@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../domain/models.dart';
+import '../domain/deadlines.dart';
+import '../domain/updates.dart';
 import '../services/notifications.dart';
+import '../services/update_installer.dart';
+import '../services/updates.dart';
 import 'controller.dart';
 import 'forms.dart';
 import 'update_card.dart';
@@ -11,16 +15,22 @@ class SettingsPage extends StatefulWidget {
     required this.controller,
     required this.notifications,
     required this.onError,
+    this.pendingUpdate,
+    this.updates,
+    this.installer,
   });
   final AppController controller;
   final NotificationService notifications;
   final ValueChanged<String> onError;
+  final AppUpdate? pendingUpdate;
+  final UpdateService? updates;
+  final UpdateInstaller? installer;
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  late final TextEditingController warn, lifespan, agency, team;
+  late final TextEditingController warn, lifespan, agency, team, autoDays;
   late String theme;
   late TimeOfDay time;
   bool busy = false;
@@ -33,13 +43,14 @@ class _SettingsPageState extends State<SettingsPage> {
     lifespan = TextEditingController(text: s.lifespanWarnDays.toString());
     agency = TextEditingController(text: s.agency);
     team = TextEditingController(text: s.team);
+    autoDays = TextEditingController(text: s.autoBackupDays.toString());
     theme = s.theme;
     time = TimeOfDay(hour: s.notifyHour, minute: s.notifyMinute);
   }
 
   @override
   void dispose() {
-    for (final field in [warn, lifespan, agency, team]) {
+    for (final field in [warn, lifespan, agency, team, autoDays]) {
       field.dispose();
     }
     super.dispose();
@@ -64,9 +75,14 @@ class _SettingsPageState extends State<SettingsPage> {
         'Số ngày báo trước phải là số nguyên không âm.',
       );
     }
+    final days = int.tryParse(autoDays.text);
+    if (days == null || days < 1 || days > 365) {
+      throw const FormatException('Chu kỳ tự sao lưu phải từ 1 đến 365 ngày.');
+    }
     return c.settings.copy({
       'warnDays': w,
       'lifespanWarnDays': l,
+      'autoBackupDays': days,
       'notifyHour': time.hour,
       'notifyMinute': time.minute,
       'agency': agency.text.trim(),
@@ -80,7 +96,12 @@ class _SettingsPageState extends State<SettingsPage> {
     padding: const EdgeInsets.all(24),
     children: [
       if (busy) const LinearProgressIndicator(),
-      UpdateCard(controller: c),
+      UpdateCard(
+        controller: c,
+        initialUpdate: widget.pendingUpdate,
+        service: widget.updates,
+        installer: widget.installer,
+      ),
       const SizedBox(height: 24),
       Text(
         'Theo dõi và nhắc hạn',
@@ -177,6 +198,35 @@ class _SettingsPageState extends State<SettingsPage> {
           icon: const Icon(Icons.notifications_active_outlined),
           label: const Text('Gửi thông báo thử'),
         ),
+      ),
+      const SizedBox(height: 28),
+      Text('Sao lưu tự động', style: Theme.of(context).textTheme.titleLarge),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Tự sao lưu khi mở ứng dụng'),
+        subtitle: Text(
+          c.settings.lastAutoBackup == null
+              ? 'Chưa có bản tự động.'
+              : 'Lần gần nhất: ${displayDate(c.settings.lastAutoBackup)}.',
+        ),
+        value: c.settings.autoBackupEnabled,
+        onChanged: busy
+            ? null
+            : (v) => _run(() => c.updateSettings({'autoBackupEnabled': v})),
+      ),
+      SizedBox(
+        width: 280,
+        child: TextField(
+          controller: autoDays,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Chu kỳ tự sao lưu (ngày)',
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+      const Text(
+        'Giữ 10 bản gần nhất trong thư mục ứng dụng; khôi phục trong Dữ liệu & báo cáo. Bản tự động mất theo máy nếu máy hỏng, nên vẫn cần sao lưu ra USB hoặc Drive định kỳ. Chu kỳ được lưu bằng nút Lưu cài đặt.',
       ),
       const SizedBox(height: 28),
       Text(

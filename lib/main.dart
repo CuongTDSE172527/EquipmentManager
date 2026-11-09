@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'data/database.dart';
+import 'services/auto_backup.dart';
 import 'services/storage.dart';
 import 'services/notifications.dart';
 import 'ui/controller.dart';
@@ -26,7 +27,11 @@ Future<void> main(List<String> args) async {
       exit(0);
     }
     runApp(
-      EquipmentManagerApp(controller: controller, notifications: notifications),
+      EquipmentManagerApp(
+        controller: controller,
+        notifications: notifications,
+        autoBackup: AutoBackupService(),
+      ),
     );
   } catch (error) {
     if (args.contains('--notify-only')) exit(1);

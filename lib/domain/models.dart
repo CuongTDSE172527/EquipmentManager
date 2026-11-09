@@ -325,11 +325,29 @@ class AppSettings {
     this.team = 'TỔ VHTTBMĐ - ĐỘI KỸ THUẬT',
     this.notificationsEnabled = false,
     this.lastBackup,
+    this.autoBackupEnabled = true,
+    this.autoBackupDays = 7,
+    this.lastAutoBackup,
+    this.autoUpdateCheck = false,
+    this.updateIncludePrereleases = true,
+    this.lastUpdateCheck,
   });
   final int warnDays, lifespanWarnDays, notifyHour, notifyMinute;
   final String theme, agency, team;
   final bool notificationsEnabled;
+
+  /// Last backup saved by the user outside the app (or before an OTA install).
   final DateTime? lastBackup;
+
+  /// Rotating copies kept inside the app folder; they do not count as an
+  /// external backup because they are lost together with the device.
+  final bool autoBackupEnabled;
+  final int autoBackupDays;
+  final DateTime? lastAutoBackup;
+
+  /// Opt-in: the app stays offline unless the user enables this.
+  final bool autoUpdateCheck, updateIncludePrereleases;
+  final DateTime? lastUpdateCheck;
   AppSettings copy(Json changes) =>
       AppSettings.fromJson({...toJson(), ...changes});
   Json toJson() => {
@@ -342,6 +360,12 @@ class AppSettings {
     'team': team,
     'notificationsEnabled': notificationsEnabled,
     'lastBackup': lastBackup?.toIso8601String(),
+    'autoBackupEnabled': autoBackupEnabled,
+    'autoBackupDays': autoBackupDays,
+    'lastAutoBackup': lastAutoBackup?.toIso8601String(),
+    'autoUpdateCheck': autoUpdateCheck,
+    'updateIncludePrereleases': updateIncludePrereleases,
+    'lastUpdateCheck': lastUpdateCheck?.toIso8601String(),
   };
   factory AppSettings.fromJson(Json j) => AppSettings(
     warnDays: j['warnDays'] as int? ?? 30,
@@ -353,5 +377,11 @@ class AppSettings {
     team: j['team'] as String? ?? 'TỔ VHTTBMĐ - ĐỘI KỸ THUẬT',
     notificationsEnabled: j['notificationsEnabled'] as bool? ?? false,
     lastBackup: readDate(j['lastBackup']),
+    autoBackupEnabled: j['autoBackupEnabled'] as bool? ?? true,
+    autoBackupDays: j['autoBackupDays'] as int? ?? 7,
+    lastAutoBackup: readDate(j['lastAutoBackup']),
+    autoUpdateCheck: j['autoUpdateCheck'] as bool? ?? false,
+    updateIncludePrereleases: j['updateIncludePrereleases'] as bool? ?? true,
+    lastUpdateCheck: readDate(j['lastUpdateCheck']),
   );
 }

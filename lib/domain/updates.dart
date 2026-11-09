@@ -1,4 +1,16 @@
+import 'models.dart';
+
 const updateRepository = 'CuongTDSE172527/EquipmentManager';
+
+/// Opt-in background check: at most once per calendar day.
+bool updateCheckDue(AppSettings settings, DateTime now) {
+  if (!settings.autoUpdateCheck) return false;
+  final last = settings.lastUpdateCheck;
+  return last == null ||
+      last.year != now.year ||
+      last.month != now.month ||
+      last.day != now.day;
+}
 
 enum UpdateTarget { android, windowsSetup, windowsPortable }
 

@@ -14,6 +14,13 @@ EQUIPMENTMANAGER — HƯỚNG DẪN NHANH
    Ghi công việc đã làm, chi phí, đơn vị và kết quả. Công việc nhập tay có thể sửa/xóa.
    Ghi sổ không đổi hạn theo dõi; muốn gia hạn, dùng Gia hạn / Hoàn thành.
    Xuất báo cáo hạng mục/lịch sử để lấy thêm sheet Bảo trì sửa chữa.
+8. Từ 0.2.0:
+   - Tổng quan → "mốc cần xác nhận" → Xác nhận: đối chiếu giấy tờ rồi chọn
+     Xác nhận đúng (giữ nguyên hạn) hoặc Sửa hạn.
+   - App tự sao lưu khi mở (mặc định 7 ngày/lần, giữ 10 bản). Khôi phục ở
+     Dữ liệu & báo cáo → Khôi phục từ bản sao lưu tự động. Vẫn sao lưu ra USB/Drive.
+   - Dữ liệu & báo cáo → Xuất kế hoạch đến hạn theo tháng/quý, gom theo đơn vị.
+   - Cài đặt → Cập nhật ứng dụng → Tự kiểm tra khi mở ứng dụng (mặc định tắt).
 
 ĐỎ: quá hạn. VÀNG: sắp đến hạn. XANH: còn hạn. XÁM: cần cập nhật.
 Ngày dạng MM/yyyy có hạn đến ngày cuối tháng đó.
