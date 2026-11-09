@@ -135,6 +135,19 @@ jobs:
           if (!(Test-Path $iscc)) { choco install innosetup --yes --no-progress }
           & $iscc "/DAppVersion=$env:VERSION" installer/EquipmentManager.iss
           if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed' }
+      - name: Test Windows update helper on disposable runner
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.checks.outputs.version }}
+        run: |
+          $headers = @{'User-Agent'='EquipmentManager-OTA-test'}
+          $old = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/v0.1.3" -Headers $headers
+          foreach ($name in @('EquipmentManager-0.1.3-windows-portable.zip','EquipmentManager-0.1.3-windows-setup.exe')) {
+            $asset = $old.assets | Where-Object name -EQ $name
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "$env:RUNNER_TEMP/$name"
+            if (('sha256:' + (Get-FileHash "$env:RUNNER_TEMP/$name").Hash.ToLowerInvariant()) -ne $asset.digest) { throw 'Previous release hash mismatch' }
+          }
+          & ./tool/test_windows_update.ps1 -OldZip "$env:RUNNER_TEMP/EquipmentManager-0.1.3-windows-portable.zip" -NewZip "dist/EquipmentManager-$env:VERSION-windows-portable.zip" -Version $env:VERSION -FixtureRoot "$env:RUNNER_TEMP/equipment-ota-test" -OldSetup "$env:RUNNER_TEMP/EquipmentManager-0.1.3-windows-setup.exe" -NewSetup "dist/EquipmentManager-$env:VERSION-windows-setup.exe" -TestSetup
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release

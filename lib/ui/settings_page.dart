@@ -3,6 +3,7 @@ import '../domain/models.dart';
 import '../services/notifications.dart';
 import 'controller.dart';
 import 'forms.dart';
+import 'update_card.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -79,6 +80,8 @@ class _SettingsPageState extends State<SettingsPage> {
     padding: const EdgeInsets.all(24),
     children: [
       if (busy) const LinearProgressIndicator(),
+      UpdateCard(controller: c),
+      const SizedBox(height: 24),
       Text(
         'Theo dõi và nhắc hạn',
         style: Theme.of(context).textTheme.titleLarge,

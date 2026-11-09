@@ -1,0 +1,148 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import '../data/database.dart';
+import '../domain/updates.dart';
+
+class UpdateInstaller {
+  const UpdateInstaller();
+  static const channel = MethodChannel('vn.cah.equipment_manager/updates');
+  Future<UpdateTarget> target() async {
+    if (Platform.isAndroid) return UpdateTarget.android;
+    if (Platform.isWindows) {
+      return await File(
+            p.join(p.dirname(Platform.resolvedExecutable), 'unins000.exe'),
+          ).exists()
+          ? UpdateTarget.windowsSetup
+          : UpdateTarget.windowsPortable;
+    }
+    throw const UpdateFailure('Máy này chưa hỗ trợ cài cập nhật.');
+  }
+
+  Future<Directory> directory() async => Directory(
+    p.join((await getApplicationSupportDirectory()).path, 'updates'),
+  );
+  Future<bool> canInstall(UpdateTarget target) async =>
+      target != UpdateTarget.android ||
+      await channel.invokeMethod<bool>('canInstall') == true;
+  Future<void> openPermission() => channel.invokeMethod<void>('openPermission');
+  Future<void> verify(File file, AppUpdate update, UpdateTarget target) async {
+    if (target != UpdateTarget.android) return;
+    await channel.invokeMethod<void>('verify', _arguments(file, update));
+  }
+
+  Map<String, Object> _arguments(File file, AppUpdate update) => {
+    'path': file.path,
+    'version': update.version.toString(),
+    'code': update.version.code,
+    'sha256': update.asset.sha256,
+  };
+
+  Future<File> backup(EquipmentRepository repository, AppUpdate update) async {
+    final root = await directory();
+    return createUpdateBackup(
+      repository,
+      Directory(p.join(root.parent.path, 'backups')),
+      update.version,
+    );
+  }
+
+  /// Return true only when Windows has a ready helper waiting for this process.
+  Future<bool> launch(File file, AppUpdate update, UpdateTarget target) async {
+    if (target == UpdateTarget.android) {
+      await channel.invokeMethod<void>('install', _arguments(file, update));
+      return false;
+    }
+    final stage = file.parent;
+    final suffix = DateTime.now().microsecondsSinceEpoch;
+    final script = File(p.join(stage.path, 'windows-update-$suffix.ps1'));
+    await script.writeAsString(
+      await rootBundle.loadString('assets/updates/windows-update.ps1'),
+      flush: true,
+    );
+    final ready = File(p.join(stage.path, 'ready-$suffix.txt'));
+    final status = File(p.join(stage.path, 'update-status.json'));
+    if (await status.exists()) await status.delete();
+    final process = await Process.start('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-WindowStyle',
+      'Hidden',
+      '-File',
+      script.path,
+      '-ParentPid',
+      '$pid',
+      '-Mode',
+      target == UpdateTarget.windowsSetup ? 'setup' : 'portable',
+      '-Package',
+      file.path,
+      '-Destination',
+      p.dirname(Platform.resolvedExecutable),
+      '-ExpectedHash',
+      update.asset.sha256,
+      '-ExpectedVersion',
+      update.version.toString(),
+      '-StatusFile',
+      status.path,
+      '-ReadyFile',
+      ready.path,
+    ], mode: ProcessStartMode.detached);
+    for (var i = 0; i < 300; i++) {
+      if (await ready.exists()) return true;
+      if (await status.exists()) {
+        final value =
+            jsonDecode((await status.readAsString()).replaceFirst('\uFEFF', ''))
+                as Map;
+        if (value['state'] == 'error') {
+          throw const UpdateFailure(
+            'Windows chưa chuẩn bị được cập nhật. Hãy đóng các cửa sổ EquipmentManager khác và thử lại. Nhật ký nằm cạnh bộ cài đã tải.',
+          );
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    process.kill();
+    throw const UpdateFailure(
+      'Windows chưa sẵn sàng cập nhật. Ứng dụng vẫn mở, chưa thay tệp. Hãy thử lại.',
+    );
+  }
+
+  Future<void> quit() async => exit(0);
+}
+
+Future<File> createUpdateBackup(
+  EquipmentRepository repository,
+  Directory directory,
+  AppVersion version,
+) async {
+  // A single SQLite read transaction gives a consistent snapshot if a reminder is running.
+  final data = await repository.db.transaction(() => repository.snapshot());
+  await directory.create(recursive: true);
+  final target = File(
+    p.join(
+      directory.path,
+      'before-update-$version-${DateTime.now().microsecondsSinceEpoch}.backup.json',
+    ),
+  );
+  final temporary = File('${target.path}.part');
+  try {
+    await temporary.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(data),
+      flush: true,
+    );
+    final result = await temporary.rename(target.path);
+    await repository.saveSettings(
+      (await repository.settings()).copy({
+        'lastBackup': DateTime.now().toIso8601String(),
+      }),
+    );
+    return result;
+  } catch (_) {
+    if (await temporary.exists()) await temporary.delete();
+    rethrow;
+  }
+}
