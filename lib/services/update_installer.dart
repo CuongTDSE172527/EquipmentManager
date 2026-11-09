@@ -94,13 +94,19 @@ class UpdateInstaller {
     for (var i = 0; i < 300; i++) {
       if (await ready.exists()) return true;
       if (await status.exists()) {
-        final value =
-            jsonDecode((await status.readAsString()).replaceFirst('\uFEFF', ''))
-                as Map;
-        if (value['state'] == 'error') {
-          throw const UpdateFailure(
-            'Windows chưa chuẩn bị được cập nhật. Hãy đóng các cửa sổ EquipmentManager khác và thử lại. Nhật ký nằm cạnh bộ cài đã tải.',
-          );
+        try {
+          final value =
+              jsonDecode(
+                    (await status.readAsString()).replaceFirst('\uFEFF', ''),
+                  )
+                  as Map;
+          if (value['state'] == 'error') {
+            throw const UpdateFailure(
+              'Windows chưa chuẩn bị được cập nhật. Hãy đóng các cửa sổ EquipmentManager khác và thử lại. Nhật ký nằm cạnh bộ cài đã tải.',
+            );
+          }
+        } on FormatException {
+          // PowerShell may still be flushing this small status file; retry.
         }
       }
       await Future<void>.delayed(const Duration(milliseconds: 100));

@@ -149,8 +149,9 @@ void main() {
           );
         } else {
           expect(installer.events, isNot(contains('launch')));
-          if (failure == 'hash')
+          if (failure == 'hash') {
             expect(installer.events, isNot(contains('backup')));
+          }
         }
         expect((await repo.equipment()).single.name, 'Dữ liệu giữ lại');
         expect(tester.takeException(), isNull);
