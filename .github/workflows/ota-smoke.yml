@@ -29,6 +29,9 @@ jobs:
           cache: true
       - uses: gradle/actions/setup-gradle@v4
       - run: flutter pub get --enforce-lockfile
+      - run: python3 tool/prepare_sqlite_assets.py --android
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Build synthetic OTA APKs (never published)
         run: |
           flutter build apk --debug --target-platform=android-x64 --build-name=0.1.4 --build-number=1004

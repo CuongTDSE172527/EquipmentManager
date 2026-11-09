@@ -23,6 +23,9 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get --enforce-lockfile
+      - run: python3 tool/prepare_sqlite_assets.py
+        env:
+          GH_TOKEN: ${{ github.token }}
       - run: dart format --output=none --set-exit-if-changed lib test tool integration_test
       - run: flutter analyze --fatal-infos
       - run: flutter test --coverage
@@ -45,6 +48,9 @@ jobs:
           cache: true
       - uses: gradle/actions/setup-gradle@v4
       - run: flutter pub get --enforce-lockfile
+      - run: python3 tool/prepare_sqlite_assets.py --android
+        env:
+          GH_TOKEN: ${{ github.token }}
       - run: flutter build apk --debug
   windows-smoke:
     needs: checks

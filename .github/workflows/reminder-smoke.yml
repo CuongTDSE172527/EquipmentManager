@@ -29,6 +29,9 @@ jobs:
           cache: true
       - uses: gradle/actions/setup-gradle@v4
       - run: flutter pub get --enforce-lockfile
+      - run: python3 tool/prepare_sqlite_assets.py --android
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Build isolated harness (never published)
         run: flutter build apk --debug --target=integration_test/reminder_harness.dart --target-platform=android-x64
       - name: Free disk for emulator on ephemeral runner

@@ -32,6 +32,9 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get --enforce-lockfile
+      - run: python3 tool/prepare_sqlite_assets.py
+        env:
+          GH_TOKEN: ${{ github.token }}
       - id: version
         env:
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
@@ -67,6 +70,9 @@ jobs:
           cache: true
       - uses: gradle/actions/setup-gradle@v4
       - run: flutter pub get --enforce-lockfile
+      - run: python3 tool/prepare_sqlite_assets.py --android
+        env:
+          GH_TOKEN: ${{ github.token }}
       - run: dart run tool/generate_templates.dart
       - name: Khôi phục khóa ký từ Secrets
         env:
