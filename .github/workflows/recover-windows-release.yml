@@ -1,0 +1,122 @@
+name: Phục hồi Windows và phát hành đúng tag
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag đã tồn tại, không sửa tag'
+        required: true
+      source_run:
+        description: 'Run release của đúng tag có checks và android thành công'
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  rebuild-windows-at-tag:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - name: Verify original signed Android build matches tag
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          SOURCE_RUN: ${{ inputs.source_run }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:TAG -notmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' -or $env:SOURCE_RUN -notmatch '^[0-9]+$') { throw 'Invalid inputs' }
+          $sha = git rev-parse HEAD
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:SOURCE_RUN" | ConvertFrom-Json
+          $jobs = (gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:SOURCE_RUN/jobs?per_page=100" | ConvertFrom-Json).jobs
+          if ($run.head_sha -ne $sha -or $run.path -ne '.github/workflows/release.yml' -or $run.status -ne 'completed') { throw 'Source run does not match tag' }
+          foreach ($name in @('checks','android')) {
+            $matched = @($jobs | Where-Object name -EQ $name)
+            if ($matched.Count -ne 1 -or $matched[0].conclusion -ne 'success') { throw "Source job failed: $name" }
+          }
+          "VERSION=$($env:TAG.Substring(1))" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "TAG_SHA=$sha" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter build windows --release --build-name="$env:VERSION" --build-number="${{ github.run_number }}"
+      - name: Package Windows and test EXE/ZIP through asset API
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -property installationPath
+          $crt = Get-ChildItem -LiteralPath "$vs\VC\Redist\MSVC" -Directory -Recurse -Filter 'Microsoft.VC*.CRT' | Where-Object FullName -Match '\\x64\\' | Sort-Object FullName -Descending | Select-Object -First 1
+          if (!$crt) { throw 'CRT not found' }
+          Copy-Item -Path "$($crt.FullName)\*.dll" -Destination 'build/windows/x64/runner/Release'
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath "dist/EquipmentManager-$env:VERSION-windows-portable.zip"
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { choco install innosetup --yes --no-progress }
+          & $iscc "/DAppVersion=$env:VERSION" installer/EquipmentManager.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed' }
+          $headers = @{'User-Agent'='EquipmentManager-OTA-test'}
+          $old = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/v0.1.3" -Headers $headers
+          foreach ($name in @('EquipmentManager-0.1.3-windows-portable.zip','EquipmentManager-0.1.3-windows-setup.exe')) {
+            $asset = $old.assets | Where-Object name -EQ $name
+            Invoke-WebRequest -Uri ($asset.url + '?download=1') -Headers @{'User-Agent'='EquipmentManager-OTA-test';'Accept'='application/octet-stream'} -OutFile "$env:RUNNER_TEMP/$name" -MaximumRetryCount 3 -RetryIntervalSec 3
+            if (('sha256:' + (Get-FileHash "$env:RUNNER_TEMP/$name").Hash.ToLowerInvariant()) -ne $asset.digest) { throw 'Old fixture digest mismatch' }
+          }
+          & ./tool/test_windows_update.ps1 -OldZip "$env:RUNNER_TEMP/EquipmentManager-0.1.3-windows-portable.zip" -NewZip "dist/EquipmentManager-$env:VERSION-windows-portable.zip" -Version $env:VERSION -FixtureRoot "$env:RUNNER_TEMP/equipment-ota-recovery" -OldSetup "$env:RUNNER_TEMP/EquipmentManager-0.1.3-windows-setup.exe" -NewSetup "dist/EquipmentManager-$env:VERSION-windows-setup.exe" -TestSetup
+      - name: Download verified Android and template from original tag run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run }}
+        run: |
+          gh run download $env:SOURCE_RUN --repo $env:GITHUB_REPOSITORY --dir dist --pattern '*'
+          if ($LASTEXITCODE -ne 0) { throw 'Original artifacts download failed' }
+          # gh downloads named artifact subfolders; merge only expected release files.
+          Get-ChildItem dist -Recurse -File | Where-Object { $_.Name -eq "EquipmentManager-$env:VERSION.apk" -or $_.Name -eq 'EquipmentManager-mau-nhap.xlsx' } | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination dist -Force }
+          [ordered]@{tag='${{ inputs.tag }}';sha=$env:TAG_SHA;source_run=$env:SOURCE_RUN} | ConvertTo-Json | Set-Content dist/provenance.json -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release-bundle
+          path: |
+            dist/*.apk
+            dist/*.exe
+            dist/*.zip
+            dist/*.xlsx
+            dist/provenance.json
+  publish:
+    needs: rebuild-windows-at-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-release-bundle
+          path: dist
+      - name: Verify provenance and publish existing tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import json,os,subprocess
+          p=json.load(open('dist/provenance.json',encoding='utf-8-sig'))
+          assert p['tag']==os.environ['TAG'] and p['sha']==subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          PY
+          VERSION="${TAG#v}"
+          test -s "dist/EquipmentManager-$VERSION.apk"
+          test -s "dist/EquipmentManager-$VERSION-windows-setup.exe"
+          test -s "dist/EquipmentManager-$VERSION-windows-portable.zip"
+          test -s dist/EquipmentManager-mau-nhap.xlsx
+          SIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$SIGNER" verify "dist/EquipmentManager-$VERSION.apk"
+          flags=()
+          if [[ "$VERSION" == 0.* ]]; then flags+=(--prerelease); fi
+          gh release create "$TAG" dist/*.apk dist/*.exe dist/*.zip dist/*.xlsx --title "EquipmentManager $VERSION" --generate-notes --verify-tag "${flags[@]}"
