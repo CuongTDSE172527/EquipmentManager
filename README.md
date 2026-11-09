@@ -2,6 +2,16 @@
 
 Ứng dụng quản lý trang thiết bị ngoại tuyến cho Windows 10/11 x64 và Android 8 trở lên. Toàn bộ giao diện bằng tiếng Việt, không cần tài khoản hoặc máy chủ. Mỗi máy có database SQLite riêng; chuyển dữ liệu bằng sao lưu/khôi phục.
 
+## Mới trong 0.1.3
+
+Mở **Thiết bị → chọn thiết bị → Lịch sử bảo trì / sửa chữa → Ghi công việc** để ghi lại việc đã làm, gồm bảo dưỡng hoặc sửa chữa, nội dung, ngày thực hiện, chi phí, đơn vị và chi tiết. Có thể sửa/xóa các công việc nhập tay, tìm kiếm, lọc theo loại/năm và xem tổng chi phí đã ghi. Các lần hoàn thành hạng mục bảo dưỡng/sửa chữa cũ cũng xuất hiện trong sổ; chúng vẫn giữ nguyên lịch sử gốc. Ghi công việc nhập tay không gia hạn hay hoàn thành hạng mục.
+
+Báo cáo **Danh sách hạng mục và lịch sử thực hiện** có thêm sheet **Bảo trì sửa chữa**. Sheet này lọc theo đơn vị và trạng thái quản lý thiết bị; bộ lọc trạng thái hạn chỉ áp dụng cho các sheet hạng mục/lịch sử hoàn thành.
+
+Bản này thay logo, giảm chuyển động và giảm tính toán lặp ở danh sách thiết bị. Xem [thay đổi đầy đủ](CHANGELOG.md) và [nghiên cứu OTA qua GitHub](docs/OTA-GITHUB.md). OTA mới ở mức nghiên cứu, chưa tự tải/cài cập nhật trong app. Để nâng từ 0.1.2, sao lưu rồi cài đè APK/EXE; giữ cùng khóa Android và không gỡ app cũ. Database tự nâng schema lên 2; vẫn khôi phục được backup phiên bản 1. Backup mới dùng định dạng 2 và cần app 0.1.3 trở lên; nếu cần quay về app cũ, dùng bản sao lưu đã tạo trước nâng cấp.
+
+Logo gốc ở `assets/brand/logo.svg`; tạo lại PNG/ICO bằng `flutter test tool/generate_brand_test.dart`.
+
 ## Cài và sử dụng
 
 1. Mở [Releases](https://github.com/CuongTDSE172527/EquipmentManager/releases), tải bản mới nhất sau khi workflow thành công.
@@ -58,8 +68,8 @@ Repo phải để **Private**. Push/PR vào `main` chạy format, analyze, test 
 git add .
 git commit -m "Mô tả thay đổi"
 git push origin main
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.4
+git push origin v0.1.4
 ```
 
 Trong GitHub → Actions → **Phát hành EquipmentManager → Run workflow**, có thể nhập phiên bản để build thử; để **Tạo Release** tắt nếu chỉ muốn tải artifacts thử. Khi chạy bằng tag, phiên bản luôn lấy từ tag. APK release phải có khóa ký; thiếu Secrets thì job thất bại, không dùng khóa debug.

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>EquipmentManager — thiết bị luôn sẵn sàng</title>
+  <rect width="512" height="512" rx="112" fill="#122B3A"/>
+  <polygon points="256,78 410,167 410,345 256,434 102,345 102,167" fill="none" stroke="#55D6C2" stroke-width="25" stroke-linejoin="round"/>
+  <polygon points="190,342 166,318 256,228 251,202 262,173 287,157 289,190 310,204 341,187 336,218 316,240 290,244" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="10" stroke-linejoin="round"/>
+  <circle cx="190" cy="318" r="10" fill="#122B3A"/>
+  <circle cx="407" cy="115" r="27" fill="#F6C667" stroke="#122B3A" stroke-width="10"/>
+</svg>

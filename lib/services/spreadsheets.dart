@@ -7,6 +7,7 @@ import 'package:xml/xml.dart';
 import '../domain/models.dart';
 import '../domain/deadlines.dart';
 import '../domain/importing.dart';
+import '../domain/service_history.dart';
 
 const trackingColumns = [
   'STT',
@@ -483,8 +484,12 @@ class SpreadsheetService {
   Uint8List itemsReport(
     List<TrackedDeadline> rows,
     List<HistoryLog> history,
-    AppSettings settings,
-  ) {
+    AppSettings settings, {
+    List<ServiceRecord> serviceRecords = const [],
+    List<Equipment> equipment = const [],
+    List<DeadlineItem>? serviceItems,
+    String? serviceProvider,
+  }) {
     final book = _book();
     final sheet = book['Hạng mục'];
     _title(sheet, settings, 'DANH SÁCH HẠNG MỤC THEO DÕI', 9);
@@ -553,6 +558,58 @@ class SpreadsheetService {
     for (var row = 4; row < logSheet.maxRows; row++) {
       final cell = logSheet.cell(
         CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row),
+      );
+      if (cell.value is IntCellValue) {
+        cell.cellStyle = cell.cellStyle!.copyWith(
+          numberFormat: NumFormat.custom(formatCode: '#,##0 "VND"'),
+        );
+      }
+    }
+    final visits =
+        serviceVisits(
+              equipment.isEmpty
+                  ? {
+                      for (final r in rows) r.equipment.id: r.equipment,
+                    }.values.toList()
+                  : equipment,
+              serviceItems ?? rows.map((r) => r.item).toList(),
+              history,
+              serviceRecords,
+            )
+            .where(
+              (v) => serviceProvider == null || v.provider == serviceProvider,
+            )
+            .toList();
+    final serviceSheet = book['Bảo trì sửa chữa'];
+    _title(serviceSheet, settings, 'LỊCH SỬ BẢO TRÌ, SỬA CHỮA', 9);
+    _row(serviceSheet, [
+      'Thiết bị',
+      'Biển số',
+      'Loại công việc',
+      'Nội dung',
+      'Ngày thực hiện',
+      'Chi phí (VND)',
+      'Đơn vị thực hiện',
+      'Chi tiết / Kết quả',
+      'Nguồn ghi nhận',
+    ]);
+    for (final visit in visits) {
+      _row(serviceSheet, [
+        visit.equipment.name,
+        visit.equipment.displayPlate,
+        visit.kind.label,
+        visit.title,
+        displayDate(visit.doneDate),
+        visit.cost,
+        visit.provider,
+        visit.note,
+        visit.record == null ? 'Hoàn thành hạng mục' : 'Ghi công việc',
+      ]);
+    }
+    _style(serviceSheet, 3, 9);
+    for (var row = 4; row < serviceSheet.maxRows; row++) {
+      final cell = serviceSheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: row),
       );
       if (cell.value is IntCellValue) {
         cell.cellStyle = cell.cellStyle!.copyWith(

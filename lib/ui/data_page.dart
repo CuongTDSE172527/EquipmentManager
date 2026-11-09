@@ -212,12 +212,20 @@ class _DataPageState extends State<DataPage> {
       const SizedBox(height: 8),
       _action(
         'Danh sách hạng mục và lịch sử thực hiện',
-        'Xuất theo bộ lọc ở trên, gom hạng mục theo đơn vị thực hiện.',
+        'Hạng mục và lịch sử theo bộ lọc. Sổ bảo trì/sửa chữa theo đơn vị và trạng thái quản lý thiết bị.',
         Icons.history_outlined,
         () => _run(() async {
           await saveBytes(
             'EquipmentManager-hang-muc-lich-su-$stamp.xlsx',
-            sheets.itemsReport(rows, c.history, c.settings),
+            sheets.itemsReport(
+              rows,
+              c.history,
+              c.settings,
+              serviceRecords: c.serviceRecords,
+              equipment: equipment,
+              serviceItems: c.items,
+              serviceProvider: provider,
+            ),
           );
         }),
       ),
@@ -272,7 +280,7 @@ class _DataPageState extends State<DataPage> {
     }
     plan.suggestMatches(c.equipment);
     if (!mounted) return;
-    final decision = await showDialog<bool>(
+    final decision = await showInstantDialog<bool>(
       context: context,
       builder: (context) => _ImportPreview(plan: plan, existing: c.equipment),
     );

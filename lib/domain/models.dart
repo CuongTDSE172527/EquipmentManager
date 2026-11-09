@@ -265,6 +265,55 @@ class HistoryLog {
   );
 }
 
+/// A past maintenance/repair event, independent of future deadline scheduling.
+class ServiceRecord {
+  ServiceRecord({
+    String? id,
+    required this.equipmentId,
+    required this.kind,
+    required this.title,
+    required this.doneDate,
+    this.cost,
+    this.provider = '',
+    this.note = '',
+  }) : id = id ?? newId();
+  final String id, equipmentId, title, provider, note;
+  final ItemKind kind;
+  final DateTime doneDate;
+  final int? cost;
+  Json toJson() => {
+    'id': id,
+    'equipmentId': equipmentId,
+    'kind': kind.name,
+    'title': title,
+    'doneDate': doneDate.toIso8601String(),
+    'cost': cost,
+    'provider': provider,
+    'note': note,
+  };
+  factory ServiceRecord.fromJson(Json j) => ServiceRecord(
+    id: j['id'] as String?,
+    equipmentId: j['equipmentId'] as String,
+    kind: enumValue(ItemKind.values, j['kind'], ItemKind.other),
+    title: j['title'] as String,
+    doneDate: readDate(j['doneDate'])!,
+    cost: j['cost'] as int?,
+    provider: j['provider'] as String? ?? '',
+    note: j['note'] as String? ?? '',
+  );
+}
+
+void validateServiceRecord(ServiceRecord record) {
+  if (![ItemKind.maintenance, ItemKind.repair].contains(record.kind) ||
+      record.title.trim().isEmpty ||
+      record.equipmentId.isEmpty ||
+      (record.cost ?? 0) < 0 ||
+      record.doneDate.year < 1900 ||
+      record.doneDate.year > 9999) {
+    throw const FormatException('Lịch sử bảo trì/sửa chữa không hợp lệ.');
+  }
+}
+
 class AppSettings {
   const AppSettings({
     this.warnDays = 30,

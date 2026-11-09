@@ -11,7 +11,7 @@ class AppDatabase extends GeneratedDatabase {
   factory AppDatabase.open(File file) => AppDatabase(NativeDatabase(file));
   factory AppDatabase.memory() => AppDatabase(NativeDatabase.memory());
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
   @override
@@ -31,6 +31,7 @@ class AppDatabase extends GeneratedDatabase {
       await customStatement(
         'CREATE TABLE history_logs (id TEXT PRIMARY KEY, item_id TEXT NOT NULL REFERENCES deadline_items(id) ON DELETE CASCADE, payload TEXT NOT NULL)',
       );
+      await _createServiceRecords();
       await customStatement(
         'CREATE INDEX history_item ON history_logs(item_id)',
       );
@@ -64,12 +65,24 @@ class AppDatabase extends GeneratedDatabase {
         ]);
       }
     },
+    onUpgrade: (_, from, to) async {
+      if (from < 2) await _createServiceRecords();
+    },
     beforeOpen: (_) async {
       await customStatement('PRAGMA foreign_keys = ON');
       await customStatement('PRAGMA busy_timeout = 5000');
       await customStatement('PRAGMA journal_mode = WAL');
     },
   );
+
+  Future<void> _createServiceRecords() async {
+    await customStatement(
+      'CREATE TABLE service_records (id TEXT PRIMARY KEY, equipment_id TEXT NOT NULL REFERENCES equipment(id) ON DELETE CASCADE, payload TEXT NOT NULL)',
+    );
+    await customStatement(
+      'CREATE INDEX service_equipment ON service_records(equipment_id)',
+    );
+  }
 }
 
 class EquipmentRepository {
@@ -86,6 +99,24 @@ class EquipmentRepository {
       (await _rows('deadline_items')).map(DeadlineItem.fromJson).toList();
   Future<List<HistoryLog>> history() async =>
       (await _rows('history_logs')).map(HistoryLog.fromJson).toList();
+  Future<List<ServiceRecord>> serviceRecords() async =>
+      (await _rows('service_records')).map(ServiceRecord.fromJson).toList();
+
+  Future<void> saveServiceRecord(ServiceRecord record) async {
+    validateServiceRecord(record);
+    await db.transaction(() async {
+      await db.customStatement(
+        'INSERT INTO service_records VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET equipment_id=excluded.equipment_id,payload=excluded.payload',
+        [record.id, record.equipmentId, jsonEncode(record.toJson())],
+      );
+      if (record.provider.isNotEmpty) {
+        await addCatalog('provider', record.provider);
+      }
+    });
+  }
+
+  Future<void> deleteServiceRecord(String id) =>
+      db.customStatement('DELETE FROM service_records WHERE id=?', [id]);
   Future<AppSettings> settings() async {
     final rows = await _rows('settings');
     return rows.isEmpty
@@ -201,10 +232,11 @@ class EquipmentRepository {
 
   Future<Json> snapshot() async => {
     'format': 'EquipmentManager',
-    'version': 1,
+    'version': 2,
     'equipment': (await equipment()).map((e) => e.toJson()).toList(),
     'items': (await items()).map((e) => e.toJson()).toList(),
     'history': (await history()).map((e) => e.toJson()).toList(),
+    'serviceRecords': (await serviceRecords()).map((e) => e.toJson()).toList(),
     'settings': (await settings()).toJson(),
     'groups': await catalog('group'),
     'providers': await catalog('provider'),
@@ -212,7 +244,8 @@ class EquipmentRepository {
 
   /// Parse and validate the complete backup before deleting any current records.
   Future<void> restore(Json backup) async {
-    if (backup['format'] != 'EquipmentManager' || backup['version'] != 1) {
+    if (backup['format'] != 'EquipmentManager' ||
+        ![1, 2].contains(backup['version'])) {
       throw const FormatException(
         'File sao lưu không đúng định dạng hoặc phiên bản.',
       );
@@ -226,6 +259,18 @@ class EquipmentRepository {
     final logs = (backup['history'] as List)
         .map((e) => HistoryLog.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
+    final services =
+        (backup['version'] == 1
+                ? <dynamic>[]
+                : backup['serviceRecords'] as List)
+            .map(
+              (e) =>
+                  ServiceRecord.fromJson(Map<String, dynamic>.from(e as Map)),
+            )
+            .toList();
+    for (final record in services) {
+      validateServiceRecord(record);
+    }
     final config = AppSettings.fromJson(
       Map<String, dynamic>.from(backup['settings'] as Map),
     );
@@ -235,6 +280,8 @@ class EquipmentRepository {
     if (ids.length != equipmentRows.length ||
         itemIds.length != itemRows.length ||
         logs.map((e) => e.id).toSet().length != logs.length ||
+        services.map((e) => e.id).toSet().length != services.length ||
+        services.any((e) => !ids.contains(e.equipmentId)) ||
         itemRows.any((e) => !ids.contains(e.equipmentId)) ||
         logs.any((e) => !itemIds.contains(e.itemId))) {
       throw const FormatException(
@@ -255,6 +302,7 @@ class EquipmentRepository {
       }
     }
     await db.transaction(() async {
+      await db.customStatement('DELETE FROM service_records');
       await db.customStatement('DELETE FROM history_logs');
       await db.customStatement('DELETE FROM deadline_items');
       await db.customStatement('DELETE FROM equipment');
@@ -271,6 +319,9 @@ class EquipmentRepository {
           l.itemId,
           jsonEncode(l.toJson()),
         ]);
+      }
+      for (final record in services) {
+        await saveServiceRecord(record);
       }
       for (final name in backup['groups'] as List) {
         await addCatalog('group', name as String);

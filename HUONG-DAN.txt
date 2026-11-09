@@ -6,6 +6,10 @@ EQUIPMENTMANAGER — HƯỚNG DẪN NHANH
 4. Vào Cài đặt → bật nhắc hạn, cấp quyền khi điện thoại hỏi → Gửi thông báo thử.
 5. Xem Tổng quan / Theo dõi hạn. Dùng Gia hạn / Hoàn thành để ghi lịch sử.
 6. Sao lưu hằng tháng. Chuyển máy: sao lưu ở máy cũ, khôi phục ở máy mới.
+7. Lịch sử bảo trì/sửa chữa: Thiết bị → chọn thiết bị → Lịch sử bảo trì / sửa chữa.
+   Ghi công việc đã làm, chi phí, đơn vị và kết quả. Công việc nhập tay có thể sửa/xóa.
+   Ghi sổ không đổi hạn theo dõi; muốn gia hạn, dùng Gia hạn / Hoàn thành.
+   Xuất báo cáo hạng mục/lịch sử để lấy thêm sheet Bảo trì sửa chữa.
 
 ĐỎ: quá hạn. VÀNG: sắp đến hạn. XANH: còn hạn. XÁM: cần cập nhật.
 Ngày dạng MM/yyyy có hạn đến ngày cuối tháng đó.

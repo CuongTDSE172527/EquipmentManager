@@ -1,7 +1,7 @@
 name: equipment_manager
 description: Quản lý trang thiết bị và nhắc hạn ngoại tuyến.
 publish_to: none
-version: 0.1.2+1002
+version: 0.1.3+1003
 environment:
   sdk: '>=3.11.0 <4.0.0'
 dependencies:
@@ -32,4 +32,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/brand/
     - assets/templates/

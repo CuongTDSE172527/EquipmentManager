@@ -11,6 +11,8 @@ import 'controller.dart';
 import 'forms.dart';
 import 'data_page.dart';
 import 'settings_page.dart';
+import 'service_history_page.dart';
+import 'responsive_motion.dart';
 
 Color statusColor(
   DeadlineStatus s, [
@@ -75,6 +77,8 @@ class _AppState extends State<EquipmentManagerApp> {
   ItemKind? kind;
   String? group, provider;
   String version = '';
+  late final lightTheme = _theme(Brightness.light);
+  late final darkTheme = _theme(Brightness.dark);
   ManagementStatus? management = ManagementStatus.active;
   AppController get c => widget.controller;
   @override
@@ -164,6 +168,13 @@ class _AppState extends State<EquipmentManagerApp> {
     );
     return ThemeData(
       useMaterial3: true,
+      splashFactory: NoSplash.splashFactory,
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: {
+          for (final platform in TargetPlatform.values)
+            platform: const ImmediatePageTransitionsBuilder(),
+        },
+      ),
       colorScheme: scheme,
       brightness: brightness,
       scaffoldBackgroundColor: brightness == Brightness.light
@@ -207,8 +218,9 @@ class _AppState extends State<EquipmentManagerApp> {
       locale: const Locale('vi', 'VN'),
       supportedLocales: const [Locale('vi', 'VN')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: _theme(Brightness.light),
-      darkTheme: _theme(Brightness.dark),
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeAnimationDuration: Duration.zero,
       themeMode: switch (c.settings.theme) {
         'dark' => ThemeMode.dark,
         'light' => ThemeMode.light,
@@ -271,10 +283,10 @@ class _AppState extends State<EquipmentManagerApp> {
                               children: [
                                 const Padding(
                                   padding: EdgeInsets.only(left: 12),
-                                  child: Icon(
-                                    Icons.inventory_2_outlined,
-                                    size: 32,
-                                    color: Color(0xFF74D7CF),
+                                  child: Image(
+                                    image: AssetImage('assets/brand/logo.png'),
+                                    width: 52,
+                                    height: 52,
                                   ),
                                 ),
                                 const SizedBox(height: 16),
@@ -453,6 +465,7 @@ class _AppState extends State<EquipmentManagerApp> {
                   ),
                   floatingActionButton: !wide && page < 3
                       ? FloatingActionButton(
+                          heroTag: null,
                           onPressed: _new,
                           tooltip: page == 1
                               ? 'Thêm hạng mục'
@@ -463,6 +476,7 @@ class _AppState extends State<EquipmentManagerApp> {
                   bottomNavigationBar: wide
                       ? null
                       : NavigationBar(
+                          animationDuration: Duration.zero,
                           selectedIndex: page,
                           onDestinationSelected: _navigate,
                           destinations: [
@@ -805,7 +819,7 @@ class _AppState extends State<EquipmentManagerApp> {
                           child: OutlinedButton.icon(
                             icon: const Icon(Icons.filter_alt_outlined),
                             label: const Text('Bộ lọc'),
-                            onPressed: () => showDialog<void>(
+                            onPressed: () => showInstantDialog<void>(
                               context: context,
                               builder: (context) => AlertDialog(
                                 title: const Text('Lọc hạng mục'),
@@ -1092,6 +1106,19 @@ class _AppState extends State<EquipmentManagerApp> {
         }),
       );
   Widget _equipment(BuildContext context) {
+    final alertsByEquipment = <String, int>{};
+    for (final row in c.tracked) {
+      if ([
+        DeadlineStatus.overdue,
+        DeadlineStatus.upcoming,
+      ].contains(row.status)) {
+        alertsByEquipment.update(
+          row.equipment.id,
+          (n) => n + 1,
+          ifAbsent: () => 1,
+        );
+      }
+    }
     final rows =
         c.equipment
             .where(
@@ -1148,16 +1175,7 @@ class _AppState extends State<EquipmentManagerApp> {
                   itemCount: rows.length,
                   itemBuilder: (context, n) {
                     final e = rows[n];
-                    final alerts = c.tracked
-                        .where(
-                          (r) =>
-                              r.equipment.id == e.id &&
-                              [
-                                DeadlineStatus.overdue,
-                                DeadlineStatus.upcoming,
-                              ].contains(r.status),
-                        )
-                        .length;
+                    final alerts = alertsByEquipment[e.id] ?? 0;
                     return Card(
                       margin: const EdgeInsets.only(bottom: 10),
                       child: ListTile(
@@ -1201,7 +1219,7 @@ class _AppState extends State<EquipmentManagerApp> {
 
   void _details(BuildContext context, Equipment equipment) => unawaited(
     _run(() async {
-      await showDialog<void>(
+      await showInstantDialog<void>(
         context: context,
         builder: (dialogContext) => ListenableBuilder(
           listenable: c,
@@ -1241,6 +1259,21 @@ class _AppState extends State<EquipmentManagerApp> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.handyman_outlined),
+                          label: const Text('Lịch sử bảo trì / sửa chữa'),
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ServiceHistoryPage(
+                                controller: c,
+                                equipment: e,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                       Wrap(
                         spacing: 24,
                         runSpacing: 12,

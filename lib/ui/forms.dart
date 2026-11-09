@@ -9,7 +9,11 @@ Future<T?> showFormDialog<T>({
   required WidgetBuilder builder,
   required Iterable<TextEditingController> controllers,
 }) {
-  final route = DialogRoute<T>(context: context, builder: builder);
+  final route = DialogRoute<T>(
+    context: context,
+    builder: builder,
+    animationStyle: AnimationStyle.noAnimation,
+  );
   unawaited(
     route.completed.then((_) {
       for (final c in controllers) {
@@ -20,13 +24,22 @@ Future<T?> showFormDialog<T>({
   return Navigator.of(context, rootNavigator: true).push(route);
 }
 
+Future<T?> showInstantDialog<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+}) => showDialog<T>(
+  context: context,
+  builder: builder,
+  animationStyle: AnimationStyle.noAnimation,
+);
+
 Future<bool> confirmAction(
   BuildContext context,
   String title,
   String message, {
   String action = 'Xác nhận',
 }) async =>
-    await showDialog<bool>(
+    await showInstantDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
