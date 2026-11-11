@@ -46,3 +46,9 @@ App ghi lại đăng nhập, đăng xuất, đăng nhập sai, tạm khóa, mọ
 - Không có "cửa sau". Nếu mất cả mật khẩu lẫn mã khôi phục của Quản trị duy nhất, không ai đặt lại được. Nên tạo **ít nhất hai Quản trị** và cất mã khôi phục ở nơi an toàn.
 - Nhắc hạn nền vẫn chạy khi chưa đăng nhập, nhưng thông báo chỉ hiện số lượng hạng mục, không hiện chi tiết.
 - Excel xuất ra không mã hóa; hãy lưu ở nơi phù hợp.
+
+## Cập nhật thư viện
+
+- Mỗi bản phát hành đối chiếu các gói Dart trong `pubspec.lock` với cơ sở dữ liệu lỗ hổng [OSV](https://osv.dev). Từ 0.4.1, không gói nào có lỗ hổng đã công bố.
+- Chỉ dùng bản thư viện và công cụ build đã phát hành ít nhất 2 tuần, kể cả gói phụ thuộc gián tiếp, để tránh bản lỗi hoặc gói độc chưa bị phát hiện.
+- SQLite gốc trong app là 3.54.0. Bản 3.54.1 sửa một lỗi tràn bộ nhớ chỉ có trên bản build 32-bit (một số điện thoại Android cũ). App chỉ chạy câu lệnh SQL của chính nó và không mở file database từ bên ngoài, nên rủi ro thấp. Sẽ nâng khi gói `sqlite3` cho Dart có bản kèm 3.54.1.

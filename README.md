@@ -2,6 +2,10 @@
 
 Ứng dụng quản lý trang thiết bị ngoại tuyến cho Windows 10/11 x64 và Android 8 trở lên. Toàn bộ giao diện bằng tiếng Việt, không cần máy chủ. Từ 0.4.0, người dùng đăng nhập bằng tài khoản cục bộ trên từng máy. Mỗi máy có database SQLite riêng; chuyển dữ liệu bằng sao lưu/khôi phục.
 
+## Mới trong 0.4.1 Beta — bảo trì thư viện
+
+Nâng `file_picker` 13, `csv` 8, `package_info_plus` 10, `pointycastle` 4, `sqlite3` 3.8, Gradle 9.8.2, AGP 9.4.1, Kotlin 2.4.21; GitHub Actions chạy Node.js 24. Không gói Dart nào có lỗ hổng đã công bố (kiểm tra theo OSV). Không đổi dữ liệu hay cách dùng. Chi tiết trong [CHANGELOG](CHANGELOG.md).
+
 ## Mới trong 0.4.0 Beta — tài khoản, bảo mật, nền đồng bộ
 
 - **Lần mở đầu sau khi cập nhật:** tạo tài khoản **Quản trị** và cất **mã khôi phục**. Dữ liệu hiện có giữ nguyên. Từ đó luôn phải đăng nhập.
