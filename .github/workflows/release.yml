@@ -119,6 +119,8 @@ jobs:
           cache: true
       - run: flutter pub get --enforce-lockfile
       - run: dart run tool/generate_templates.dart
+      - name: Helper cập nhật khởi động được khi app gọi từ Dart
+        run: flutter test test/windows_update_launch_test.dart
       - name: Build Windows
         env:
           VERSION: ${{ needs.checks.outputs.version }}

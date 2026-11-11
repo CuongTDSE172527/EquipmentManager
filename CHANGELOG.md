@@ -1,5 +1,13 @@
 # Thay đổi
 
+## Chưa phát hành
+
+- **Sửa cập nhật OTA trên Windows** báo "Windows chưa sẵn sàng cập nhật. Ứng dụng vẫn mở, chưa thay tệp."
+  - Nguyên nhân: app chạy helper cập nhật bằng `powershell.exe` ở chế độ tách rời (`ProcessStartMode.detached`, không có console). Trên Windows 11 hiện tại, Windows PowerShell 5.1 treo ngay lúc khởi động trong chế độ này, trước khi chạy dòng script nào. Sau 30 giây app bỏ cuộc. Đã tái hiện trên máy thật: chế độ tách rời treo, chế độ thường chạy xong trong 0,5 giây và vẫn chạy tiếp sau khi app thoát.
+  - Sửa: chạy helper ở chế độ thường và đọc bỏ stdout/stderr.
+  - Kiểm thử CI cũ gọi helper từ một PowerShell có sẵn console nên không gặp lỗi. Thêm kiểm thử gọi helper qua đúng đường Dart của app, chạy trong job Windows của CI và của workflow phát hành.
+  - **Máy Windows đang dùng 0.4.x phải cài bản này bằng tay một lần** (tải bộ cài từ Releases, cài đè, dữ liệu giữ nguyên), vì bản đang cài vẫn dùng cách gọi cũ. Android không bị ảnh hưởng.
+
 ## 0.4.2 Beta
 
 Bản sửa lỗi, không đổi dữ liệu hay cách dùng. Cập nhật thẳng từ 0.4.x bằng OTA.

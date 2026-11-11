@@ -66,15 +66,7 @@ class UpdateInstaller {
     final ready = File(p.join(stage.path, 'ready-$suffix.txt'));
     final status = File(p.join(stage.path, 'update-status.json'));
     if (await status.exists()) await status.delete();
-    final process = await Process.start('powershell.exe', [
-      '-NoProfile',
-      '-NonInteractive',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-WindowStyle',
-      'Hidden',
-      '-File',
-      script.path,
+    final process = await startWindowsHelper(script.path, [
       '-ParentPid',
       '$pid',
       '-Mode',
@@ -91,7 +83,7 @@ class UpdateInstaller {
       status.path,
       '-ReadyFile',
       ready.path,
-    ], mode: ProcessStartMode.detached);
+    ]);
     for (var i = 0; i < 300; i++) {
       if (await ready.exists()) return true;
       if (await status.exists()) {
@@ -119,6 +111,34 @@ class UpdateInstaller {
   }
 
   Future<void> quit() async => exit(0);
+}
+
+/// Starts the Windows update helper script with PowerShell 5.1.
+///
+/// Uses [ProcessStartMode.normal]: with `detached` (DETACHED_PROCESS, no
+/// console) Windows PowerShell can hang during startup before running any
+/// script line, which made OTA time out ("Windows chưa sẵn sàng cập nhật").
+/// A normally started child still keeps running after the app exits, which
+/// the helper needs in order to replace the app files.
+Future<Process> startWindowsHelper(
+  String script,
+  List<String> arguments,
+) async {
+  final process = await Process.start('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-WindowStyle',
+    'Hidden',
+    '-File',
+    script,
+    ...arguments,
+  ]);
+  // Drain the pipes so the helper never blocks on a full buffer.
+  process.stdout.drain<void>().ignore();
+  process.stderr.drain<void>().ignore();
+  return process;
 }
 
 Future<File> createUpdateBackup(
