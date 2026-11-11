@@ -66,10 +66,10 @@ ImportPlan readWorkbook(
     final delimiter = first.split(';').length > first.split(',').length
         ? ';'
         : ',';
-    final rows = CsvToListConverter(
+    // Giữ dòng trống để số dòng trong thông báo lỗi khớp với file gốc.
+    final rows = CsvDecoder(
       fieldDelimiter: delimiter,
-      shouldParseNumbers: false,
-      eol: text.contains('\r\n') ? '\r\n' : '\n',
+      skipEmptyLines: false,
     ).convert(text).map((r) => r.map((c) => c.toString()).toList()).toList();
     final metadata = rows
         .take(10)

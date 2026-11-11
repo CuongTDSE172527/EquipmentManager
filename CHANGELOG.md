@@ -1,5 +1,15 @@
 # Thay đổi
 
+## Chưa phát hành
+
+- **GitHub Actions chạy Node.js 24**: `actions/checkout@v6`, `upload-artifact@v7`, `download-artifact@v8`, `setup-java@v5`, `gradle/actions/setup-gradle@v5`. Giữ `setup-gradle` ở v5 vì v6 kèm điều khoản sử dụng thương mại cho phần lưu cache.
+- **Nâng thư viện**:
+  - `file_picker` 10 → 13: API tĩnh mới, đọc tệp đã chọn qua `readAsBytes()`; kiểm tra dung lượng trước khi đọc.
+  - `csv` 6 → 8: đọc CSV bằng `CsvDecoder`, giữ dòng trống để số dòng báo lỗi khớp file gốc.
+  - `package_info_plus` 9 → 10, `pointycastle` 3.9 → 4.0, `sqlite3` 3.5 → 3.8.
+  - Chỉ chọn bản đã phát hành ít nhất 2 tuần, kể cả gói phụ thuộc gián tiếp.
+- Chưa nâng được `archive` 4, `xml` 7, `equatable` 3 vì `excel` 4.0.6 còn khóa bản cũ. `material_color_utilities`, `test_api` và `meta` do Flutter SDK quyết định.
+
 ## 0.4.0 Beta
 
 - **Tài khoản cục bộ**:

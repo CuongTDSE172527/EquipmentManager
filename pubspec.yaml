@@ -10,23 +10,23 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   drift: ^2.35.3
-  sqlite3: ^3.1.0
+  sqlite3: ^3.8.0
   path: ^1.9.1
   path_provider: ^2.1.5
   intl: any
-  file_picker: ^10.3.10
+  file_picker: ^13.3.0
   excel: ^4.0.6
-  csv: ^6.0.0
+  csv: ^8.0.0
   archive: ^3.6.1
   xml: ^6.6.1
   flutter_local_notifications: ^23.0.0
   android_alarm_manager_plus: ^5.1.2
   timezone: ^0.11.0
   flutter_timezone: ^5.0.1
-  package_info_plus: ^9.0.0
+  package_info_plus: ^10.2.2
   uuid: ^4.5.2
   crypto: ^3.0.8
-  pointycastle: 3.9.1
+  pointycastle: ^4.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

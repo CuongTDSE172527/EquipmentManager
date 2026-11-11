@@ -15,7 +15,7 @@ jobs:
   rebuild-windows-at-tag:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
@@ -77,7 +77,7 @@ jobs:
           # gh downloads named artifact subfolders; merge only expected release files.
           Get-ChildItem dist -Recurse -File | Where-Object { $_.Name -eq "EquipmentManager-$env:VERSION.apk" -or $_.Name -eq 'EquipmentManager-mau-nhap.xlsx' } | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination dist -Force }
           [ordered]@{tag='${{ inputs.tag }}';sha=$env:TAG_SHA;source_run=$env:SOURCE_RUN} | ConvertTo-Json | Set-Content dist/provenance.json -Encoding utf8
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: verified-release-bundle
           path: |
@@ -93,10 +93,10 @@ jobs:
       contents: write
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.tag }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: verified-release-bundle
           path: dist

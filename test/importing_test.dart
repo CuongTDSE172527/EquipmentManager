@@ -209,6 +209,21 @@ void main() {
       throwsA(anything),
     );
   });
+  test('CSV dấu phẩy: ô trong ngoặc kép, xuống dòng, dòng trống, số 0 đầu', () {
+    final text =
+        '${trackingColumns.join(',')}\n'
+        '\n'
+        '01,"Xe thử, loại A","ABC\n123",,ACV mua,05/2026,"ghi ""chú"""\n';
+    final p = readWorkbook(
+      Uint8List.fromList(utf8.encode(text)),
+      'a.csv',
+      today: today,
+    );
+    final e = p.records.single.equipment;
+    expect(e.name, 'Xe thử, loại A');
+    expect(e.roadPlate, 'ABC\n123');
+    expect(p.records.single.items.length, greaterThan(0));
+  });
   test(
     'Nhập đã duyệt trong giao dịch, bảo toàn mã và lịch sử khi ghép',
     () async {

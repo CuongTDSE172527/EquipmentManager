@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -16,16 +15,26 @@ import 'controller.dart';
 import 'forms.dart';
 
 Future<bool> saveBytes(String filename, Uint8List bytes) async {
-  final path = await FilePicker.platform.saveFile(
+  // Từ file_picker 12, saveFile tự ghi nội dung trên mọi nền tảng.
+  final saved = await FilePicker.saveFile(
     dialogTitle: 'Lưu tệp',
     fileName: filename,
     bytes: bytes,
   );
-  if (path == null) return false;
-  if (!Platform.isAndroid && !Platform.isIOS) {
-    await File(path).writeAsBytes(bytes, flush: true);
-  }
-  return true;
+  return saved != null;
+}
+
+/// Đọc tệp đã chọn, từ chối trước khi đọc nếu nền tảng báo kích thước quá lớn.
+Future<Uint8List> readPicked(
+  PlatformFile file,
+  int maxBytes,
+  String tooLarge,
+) async {
+  final size = await file.length();
+  if (size != null && size > maxBytes) throw FormatException(tooLarge);
+  final bytes = await file.readAsBytes();
+  if (bytes.length > maxBytes) throw FormatException(tooLarge);
+  return bytes;
 }
 
 class DataPage extends StatefulWidget {
@@ -425,16 +434,12 @@ class _DataPageState extends State<DataPage> {
   }
 
   Future<void> _restore() async {
-    final result = await FilePicker.platform.pickFiles(
+    final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['enc', 'zip', 'json'],
     );
-    if (result == null) return;
-    final file = result.files.single;
-    if (file.size > maxBackupBytes) {
-      throw const FormatException('File sao lưu quá lớn.');
-    }
-    var bytes = file.bytes ?? await File(file.path!).readAsBytes();
+    if (file == null) return;
+    var bytes = await readPicked(file, maxBackupBytes, 'File sao lưu quá lớn.');
     if (isEncryptedBackup(bytes)) {
       if (!mounted) return;
       final password = await _askBackupPassword();
@@ -549,16 +554,19 @@ class _DataPageState extends State<DataPage> {
   }
 
   Future<void> _import() async {
-    final selected = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
+    final selected = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['xlsx', 'csv'],
-      withData: true,
     );
-    if (selected == null) return;
+    if (selected.isEmpty) return;
     final plan = ImportPlan();
-    for (final file in selected.files) {
-      final part = readWorkbook(file.bytes!, file.name, today: c.clock());
+    for (final file in selected) {
+      final bytes = await readPicked(
+        file,
+        20 * 1024 * 1024,
+        'File nhập tối đa 20 MB.',
+      );
+      final part = readWorkbook(bytes, file.name, today: c.clock());
       plan.records.addAll(part.records);
       plan.issues.addAll(part.issues);
       plan.readRows += part.readRows;

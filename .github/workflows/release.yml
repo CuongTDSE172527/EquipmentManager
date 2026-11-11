@@ -26,7 +26,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       code: ${{ steps.version.outputs.code }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -51,7 +51,7 @@ jobs:
       - run: flutter analyze --fatal-infos
       - run: flutter test --coverage
       - run: dart run tool/generate_templates.dart
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: excel-template
           path: assets/templates/EquipmentManager-mau-nhap.xlsx
@@ -59,8 +59,8 @@ jobs:
     needs: checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -68,7 +68,7 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
       - run: flutter pub get --enforce-lockfile
       - run: python3 tool/prepare_sqlite_assets.py --android
         env:
@@ -101,7 +101,7 @@ jobs:
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-release.apk "dist/EquipmentManager-$VERSION.apk"
           "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" verify --verbose "dist/EquipmentManager-$VERSION.apk"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android-release
           path: dist/*.apk
@@ -112,7 +112,7 @@ jobs:
     needs: checks
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -154,7 +154,7 @@ jobs:
             if (('sha256:' + (Get-FileHash "$env:RUNNER_TEMP/$name").Hash.ToLowerInvariant()) -ne $asset.digest) { throw 'Previous release hash mismatch' }
           }
           & ./tool/test_windows_update.ps1 -OldZip "$env:RUNNER_TEMP/EquipmentManager-0.1.4-windows-portable.zip" -NewZip "dist/EquipmentManager-$env:VERSION-windows-portable.zip" -Version $env:VERSION -FixtureRoot "$env:RUNNER_TEMP/equipment-ota-test" -OldSetup "$env:RUNNER_TEMP/EquipmentManager-0.1.4-windows-setup.exe" -NewSetup "dist/EquipmentManager-$env:VERSION-windows-setup.exe" -TestSetup
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-release
           path: |
@@ -167,10 +167,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true

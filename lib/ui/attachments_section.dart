@@ -8,7 +8,7 @@ import '../domain/deadlines.dart';
 import '../domain/models.dart';
 import '../services/attachment_files.dart';
 import 'controller.dart';
-import 'data_page.dart' show saveBytes;
+import 'data_page.dart' show readPicked, saveBytes;
 import 'forms.dart';
 
 String formatBytes(int bytes) => bytes < 1024 * 1024
@@ -148,19 +148,17 @@ class AttachmentsSection extends StatelessWidget {
   }
 
   Future<void> _add(BuildContext context) async {
-    final picked = await FilePicker.platform.pickFiles(
+    final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: attachmentTypes.keys.toList(),
     );
-    if (picked == null) return;
-    final file = picked.files.single;
-    if (file.size > maxAttachmentBytes) {
-      throw const FormatException('Tệp lớn hơn 25 MB. Hãy nén hoặc chia nhỏ.');
-    }
-    final Uint8List bytes = file.bytes ?? await File(file.path!).readAsBytes();
-    if (bytes.isEmpty || bytes.length > maxAttachmentBytes) {
-      throw const FormatException('Tệp trống hoặc lớn hơn 25 MB.');
-    }
+    if (file == null) return;
+    final bytes = await readPicked(
+      file,
+      maxAttachmentBytes,
+      'Tệp lớn hơn 25 MB. Hãy nén hoặc chia nhỏ.',
+    );
+    if (bytes.isEmpty) throw const FormatException('Tệp trống.');
     final draft = Attachment(
       equipmentId: equipment.id,
       fileName: file.name,

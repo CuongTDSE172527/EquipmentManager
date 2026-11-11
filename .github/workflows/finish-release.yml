@@ -15,7 +15,7 @@ jobs:
   publish-verified-artifacts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Xác minh artifacts thuộc đúng tag và các job bắt buộc đã qua
@@ -41,7 +41,7 @@ jobs:
               assert len(match) == 1 and match[0]['conclusion'] == 'success', 'Required job failed: '+name
           print('Verified checks + signed APK + Windows artifacts for tag v'+os.environ['VERSION'])
           PY
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           github-token: ${{ github.token }}
           run-id: ${{ inputs.source_run }}
