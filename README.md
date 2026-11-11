@@ -2,6 +2,10 @@
 
 Ứng dụng quản lý trang thiết bị ngoại tuyến cho Windows 10/11 x64 và Android 8 trở lên. Toàn bộ giao diện bằng tiếng Việt, không cần máy chủ. Từ 0.4.0, người dùng đăng nhập bằng tài khoản cục bộ trên từng máy. Mỗi máy có database SQLite riêng; chuyển dữ liệu bằng sao lưu/khôi phục.
 
+## Mới trong 0.4.3 Beta — sửa cập nhật OTA trên Windows
+
+Cập nhật trong app trên Windows không còn dừng ở thông báo "Windows chưa sẵn sàng cập nhật". **Máy Windows đang chạy 0.4.1 hoặc 0.4.2 cần cài tay 0.4.3 một lần** (tải `EquipmentManager-0.4.3-windows-setup.exe` trong Releases, chạy và cài đè; dữ liệu giữ nguyên). Từ 0.4.3, OTA trên Windows hoạt động lại. Android không bị ảnh hưởng. Chi tiết trong [CHANGELOG](CHANGELOG.md).
+
 ## Mới trong 0.4.2 Beta — sửa file Excel
 
 File Excel app xuất ra (báo cáo, kế hoạch, mẫu nhập) không còn bị Excel báo "We found a problem with some content" và tự sửa `styles.xml`; hàng tiêu đề có nền xám đúng thiết kế. Chi tiết trong [CHANGELOG](CHANGELOG.md).

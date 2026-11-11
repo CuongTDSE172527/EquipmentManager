@@ -5,6 +5,8 @@ EQUIPMENTMANAGER — HƯỚNG DẪN NHANH
    kiểm tra → tải → cài bản mới. Từ 0.3.0, bản Beta phát hành như bản chính thức.
    App tự sao lưu trước cài. Android có thể hỏi quyền cài từ EquipmentManager.
    Windows đóng cửa sổ, cập nhật rồi mở lại; hãy đóng các cửa sổ app khác.
+   Windows đang chạy 0.4.1 hoặc 0.4.2: cài tay bộ cài 0.4.3 một lần (cài đè,
+   dữ liệu giữ nguyên) vì OTA của hai bản này báo "Windows chưa sẵn sàng".
 2. Mở Dữ liệu & báo cáo → Tải mẫu nhập Excel, điền và nhập lại.
 3. Kiểm tra bản xem trước; chọn tạo mới hoặc thiết bị cần ghép cho mỗi dòng.
 4. Vào Cài đặt → bật nhắc hạn, cấp quyền khi điện thoại hỏi → Gửi thông báo thử.

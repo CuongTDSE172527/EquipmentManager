@@ -1,6 +1,8 @@
 # Thay đổi
 
-## Chưa phát hành
+## 0.4.3 Beta
+
+Bản sửa lỗi, không đổi dữ liệu hay cách dùng. Trên Windows cần cài tay một lần (xem bên dưới); Android cập nhật bằng OTA như thường.
 
 - **Sửa cập nhật OTA trên Windows** báo "Windows chưa sẵn sàng cập nhật. Ứng dụng vẫn mở, chưa thay tệp."
   - Nguyên nhân: app chạy helper cập nhật bằng `powershell.exe` ở chế độ tách rời (`ProcessStartMode.detached`, không có console). Trên Windows 11 hiện tại, Windows PowerShell 5.1 treo ngay lúc khởi động trong chế độ này, trước khi chạy dòng script nào. Sau 30 giây app bỏ cuộc. Đã tái hiện trên máy thật: chế độ tách rời treo, chế độ thường chạy xong trong 0,5 giây và vẫn chạy tiếp sau khi app thoát.
