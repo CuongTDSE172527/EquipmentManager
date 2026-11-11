@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../data/backup_archive.dart';
+import '../data/backup_crypto.dart';
+import '../domain/accounts.dart';
 import '../domain/models.dart';
 import '../domain/deadlines.dart';
 import '../domain/importing.dart';
@@ -111,44 +113,34 @@ class _DataPageState extends State<DataPage> {
           await saveBytes('EquipmentManager-mau-nhap.xlsx', sheets.template());
         }),
       ),
-      _action(
-        'Nhập Excel / CSV',
-        'Chọn một hoặc nhiều file. Kiểm tra lỗi, đối chiếu và xác nhận từng dòng trước khi ghi.',
-        Icons.upload_file_outlined,
-        () => _run(_import),
-      ),
-      _action(
-        'Sao lưu toàn bộ dữ liệu',
-        'Lưu thiết bị, hạng mục, lịch sử, tệp đính kèm, danh mục và cài đặt vào một file ZIP.',
-        Icons.backup_outlined,
-        () => _run(() async {
-          final now = DateTime.now();
-          final bytes = await encodeBackup(
-            c.repository,
-            edit: (data) => (data['settings'] as Json)['lastBackup'] = now
-                .toIso8601String(),
-          );
-          if (await saveBytes('EquipmentManager-$stamp.backup.zip', bytes)) {
-            await c.repository.saveSettings(
-              c.settings.copy({'lastBackup': now.toIso8601String()}),
-            );
-            await c.load();
-            widget.onError('Đã lưu bản sao lưu.');
-          }
-        }),
-      ),
-      _action(
-        'Khôi phục từ bản sao lưu',
-        'Kiểm tra toàn bộ file trước khi thay dữ liệu hiện tại. Dữ liệu hiện tại được tự lưu một bản trước khi khôi phục.',
-        Icons.restore_outlined,
-        () => _run(_restore),
-      ),
-      _action(
-        'Khôi phục từ bản sao lưu tự động',
-        'Chọn một trong 10 bản tự động gần nhất trên máy này.',
-        Icons.history_outlined,
-        () => _run(_restoreAuto),
-      ),
+      if (c.can(Permission.editData))
+        _action(
+          'Nhập Excel / CSV',
+          'Chọn một hoặc nhiều file. Kiểm tra lỗi, đối chiếu và xác nhận từng dòng trước khi ghi.',
+          Icons.upload_file_outlined,
+          () => _run(_import),
+        ),
+      if (c.can(Permission.exportBackup))
+        _action(
+          'Sao lưu toàn bộ dữ liệu',
+          'Thiết bị, hạng mục, lịch sử, tệp đính kèm, danh mục và cài đặt trong một file. Mặc định mã hóa bằng mật khẩu sao lưu.',
+          Icons.backup_outlined,
+          () => _run(_backup),
+        ),
+      if (c.can(Permission.restoreBackup)) ...[
+        _action(
+          'Khôi phục từ bản sao lưu',
+          'Nhận file .enc (mã hóa), .zip hoặc .json. Kiểm tra toàn bộ file và tự lưu dữ liệu hiện tại trước khi thay. Tài khoản trên máy giữ nguyên.',
+          Icons.restore_outlined,
+          () => _run(_restore),
+        ),
+        _action(
+          'Khôi phục từ bản sao lưu tự động',
+          'Chọn một trong 10 bản tự động gần nhất trên máy này.',
+          Icons.history_outlined,
+          () => _run(_restoreAuto),
+        ),
+      ],
       const SizedBox(height: 24),
       Text(
         'Kế hoạch đến hạn theo kỳ',
@@ -312,20 +304,174 @@ class _DataPageState extends State<DataPage> {
       ),
     ],
   );
+
+  /// Asks for the backup password; null means cancelled, an empty string
+  /// means the user chose an unencrypted copy.
+  Future<String?> _backupPassword() {
+    final first = TextEditingController(), second = TextEditingController();
+    var plain = false;
+    return showFormDialog<String>(
+      controllers: [first, second],
+      context: context,
+      builder: (context) {
+        String? error;
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: const Text('Mật khẩu sao lưu'),
+            content: SizedBox(
+              width: 440,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'File được mã hóa AES-256. Cần đúng mật khẩu này để khôi phục; mất mật khẩu là không mở được file. Không dùng lại mật khẩu đăng nhập.',
+                    ),
+                    const SizedBox(height: 12),
+                    if (!plain) ...[
+                      TextField(
+                        controller: first,
+                        obscureText: true,
+                        autofocus: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Mật khẩu sao lưu (ít nhất 10 ký tự)',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: second,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Nhập lại mật khẩu',
+                        ),
+                      ),
+                    ],
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: plain,
+                      onChanged: (v) => setState(() => plain = v ?? false),
+                      title: const Text('Không mã hóa (không khuyến nghị)'),
+                      subtitle: const Text(
+                        'Ai có file cũng đọc được toàn bộ dữ liệu.',
+                      ),
+                    ),
+                    if (error != null)
+                      Text(
+                        error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Hủy'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (plain) return Navigator.pop(context, '');
+                  final problem =
+                      backupPasswordProblem(first.text) ??
+                      (first.text != second.text
+                          ? 'Mật khẩu nhập lại không khớp.'
+                          : null);
+                  if (problem != null) {
+                    setState(() => error = problem);
+                    return;
+                  }
+                  Navigator.pop(context, first.text);
+                },
+                child: const Text('Sao lưu'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _backup() async {
+    final password = await _backupPassword();
+    if (password == null) return;
+    final now = DateTime.now();
+    var bytes = await encodeBackup(
+      c.repository,
+      edit: (data) =>
+          (data['settings'] as Json)['lastBackup'] = now.toIso8601String(),
+    );
+    final encrypted = password.isNotEmpty;
+    if (encrypted) bytes = await encryptBackup(bytes, password);
+    if (await saveBytes(
+      'EquipmentManager-$stamp.backup.${encrypted ? 'enc' : 'zip'}',
+      bytes,
+    )) {
+      // Bookkeeping only, so any role allowed to export may record it.
+      await c.repository.saveSettings(
+        c.settings.copy({'lastBackup': now.toIso8601String()}),
+      );
+      await c.repository.logAudit(
+        'backup',
+        entity: 'data',
+        summary: encrypted ? 'Có mã hóa' : 'Không mã hóa',
+      );
+      await c.load();
+      widget.onError('Đã lưu bản sao lưu${encrypted ? ' mã hóa' : ''}.');
+    }
+  }
+
   Future<void> _restore() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['zip', 'json'],
+      allowedExtensions: ['enc', 'zip', 'json'],
     );
     if (result == null) return;
     final file = result.files.single;
     if (file.size > maxBackupBytes) {
       throw const FormatException('File sao lưu quá lớn.');
     }
-    await _confirmAndRestore(
-      file.bytes != null
-          ? decodeBackup(file.bytes!)
-          : await readBackupFile(File(file.path!)),
+    var bytes = file.bytes ?? await File(file.path!).readAsBytes();
+    if (isEncryptedBackup(bytes)) {
+      if (!mounted) return;
+      final password = await _askBackupPassword();
+      if (password == null) return;
+      bytes = await decryptBackup(bytes, password);
+    }
+    await _confirmAndRestore(decodeBackup(bytes));
+  }
+
+  Future<String?> _askBackupPassword() {
+    final field = TextEditingController();
+    return showFormDialog<String>(
+      controllers: [field],
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('File sao lưu được mã hóa'),
+        content: SizedBox(
+          width: 400,
+          child: TextField(
+            controller: field,
+            obscureText: true,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Mật khẩu sao lưu'),
+            onSubmitted: (v) => Navigator.pop(context, v),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, field.text),
+            child: const Text('Giải mã'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -391,6 +537,7 @@ class _DataPageState extends State<DataPage> {
     )) {
       return;
     }
+    c.require(Permission.restoreBackup);
     if (c.equipment.isNotEmpty) {
       await auto.create(c.repository, DateTime.now(), beforeRestore: true);
     }

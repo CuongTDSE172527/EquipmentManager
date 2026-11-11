@@ -17,11 +17,15 @@ class UpdateCard extends StatefulWidget {
     this.installer,
     this.packageInfo,
     this.initialUpdate,
+    this.canManage = true,
   });
   final AppController controller;
 
   /// Found by the opt-in check on launch; still requires the user to download.
   final AppUpdate? initialUpdate;
+
+  /// Only administrators change update options, download or install.
+  final bool canManage;
   final UpdateService? service;
   final UpdateInstaller? installer;
   final Future<PackageInfo> Function()? packageInfo;
@@ -310,37 +314,44 @@ class _UpdateCardState extends State<UpdateCard> with WidgetsBindingObserver {
           const Text(
             'Kiểm tra và tải từ GitHub khi có Internet. Dữ liệu thiết bị được giữ trên máy.',
           ),
+          if (!widget.canManage)
+            const Text('Chỉ Quản trị tải và cài bản cập nhật trên máy này.'),
           const SizedBox(height: 12),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Bao gồm bản thử nghiệm'),
-            subtitle: const Text(
-              'Từ 0.3.0, bản Beta phát hành như bản chính thức. Bật để nhận thêm bản thử nghiệm (pre-release) nếu có.',
+          if (widget.canManage)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Bao gồm bản thử nghiệm'),
+              subtitle: const Text(
+                'Từ 0.3.0, bản Beta phát hành như bản chính thức. Bật để nhận thêm bản thử nghiệm (pre-release) nếu có.',
+              ),
+              value: includePrereleases,
+              onChanged: busy
+                  ? null
+                  : (value) {
+                      setState(() {
+                        includePrereleases = value;
+                        update = null;
+                        downloaded = null;
+                        message = null;
+                      });
+                      unawaited(
+                        _saveSetting('updateIncludePrereleases', value),
+                      );
+                    },
             ),
-            value: includePrereleases,
-            onChanged: busy
-                ? null
-                : (value) {
-                    setState(() {
-                      includePrereleases = value;
-                      update = null;
-                      downloaded = null;
-                      message = null;
-                    });
-                    unawaited(_saveSetting('updateIncludePrereleases', value));
-                  },
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Tự kiểm tra khi mở ứng dụng'),
-            subtitle: const Text(
-              'Tối đa 1 lần/ngày, chỉ báo khi có bản mới. Không tự tải hoặc cài. Tắt để ứng dụng không dùng Internet.',
+          if (widget.canManage)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Tự kiểm tra khi mở ứng dụng'),
+              subtitle: const Text(
+                'Tối đa 1 lần/ngày, chỉ báo khi có bản mới. Không tự tải hoặc cài. Tắt để ứng dụng không dùng Internet.',
+              ),
+              value: widget.controller.settings.autoUpdateCheck,
+              onChanged: busy
+                  ? null
+                  : (value) =>
+                        unawaited(_saveSetting('autoUpdateCheck', value)),
             ),
-            value: widget.controller.settings.autoUpdateCheck,
-            onChanged: busy
-                ? null
-                : (value) => unawaited(_saveSetting('autoUpdateCheck', value)),
-          ),
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -352,13 +363,13 @@ class _UpdateCardState extends State<UpdateCard> with WidgetsBindingObserver {
                 icon: const Icon(Icons.refresh),
                 label: const Text('Kiểm tra cập nhật'),
               ),
-              if (update != null && downloaded == null)
+              if (widget.canManage && update != null && downloaded == null)
                 FilledButton.icon(
                   onPressed: busy ? null : _download,
                   icon: const Icon(Icons.download_outlined),
                   label: const Text('Tải bản cập nhật'),
                 ),
-              if (downloaded != null && !allowed)
+              if (widget.canManage && downloaded != null && !allowed)
                 OutlinedButton.icon(
                   onPressed: busy
                       ? null
@@ -369,7 +380,7 @@ class _UpdateCardState extends State<UpdateCard> with WidgetsBindingObserver {
                   icon: const Icon(Icons.security_outlined),
                   label: const Text('Cho phép cài từ EquipmentManager'),
                 ),
-              if (downloaded != null)
+              if (widget.canManage && downloaded != null)
                 FilledButton.icon(
                   onPressed: busy || !allowed ? null : _install,
                   icon: const Icon(Icons.install_desktop),

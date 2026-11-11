@@ -11,6 +11,7 @@ import 'package:equipment_manager/ui/app.dart';
 import 'package:equipment_manager/ui/controller.dart';
 import 'ui_test.dart' show SilentNotifications;
 import 'updates_test.dart' as fixture;
+import 'session_helper.dart';
 
 class CountingUpdates extends UpdateService {
   int calls = 0;
@@ -91,7 +92,7 @@ void main() {
         ),
       );
       final c = AppController(repo, clock: () => today);
-      await c.load();
+      await signInForTest(c);
       await tester.pumpWidget(
         EquipmentManagerApp(
           controller: c,
@@ -154,7 +155,7 @@ void main() {
         const AppSettings().copy({'autoUpdateCheck': enabled}),
       );
       final c = AppController(repo, clock: () => today);
-      await c.load();
+      await signInForTest(c);
       final updates = CountingUpdates();
       await tester.pumpWidget(
         EquipmentManagerApp(

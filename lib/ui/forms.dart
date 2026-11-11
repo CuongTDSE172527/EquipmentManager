@@ -660,7 +660,6 @@ Future<void> completionForm(
     ),
   );
   if (result != null) {
-    await c.repository.recordCompletion(result.item, result.history);
-    await c.load();
+    await c.recordCompletion(result.item, result.history);
   }
 }

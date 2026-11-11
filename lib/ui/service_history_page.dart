@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../domain/accounts.dart';
 import '../domain/models.dart';
 import '../domain/deadlines.dart';
 import '../domain/service_history.dart';
@@ -193,7 +194,8 @@ class _ServiceHistoryPageState extends State<ServiceHistoryPage> {
                                           ),
                                         ),
                                       ),
-                                      if (visit.record != null)
+                                      if (visit.record != null &&
+                                          c.can(Permission.editData))
                                         PopupMenuButton<String>(
                                           tooltip: 'Thao tác lịch sử',
                                           onSelected: (action) => _run(() async {
@@ -268,13 +270,15 @@ class _ServiceHistoryPageState extends State<ServiceHistoryPage> {
             ],
           ),
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          heroTag: null,
-          onPressed: () =>
-              _run(() => serviceRecordForm(context, c, widget.equipment)),
-          icon: const Icon(Icons.add),
-          label: const Text('Ghi công việc'),
-        ),
+        floatingActionButton: c.can(Permission.editData)
+            ? FloatingActionButton.extended(
+                heroTag: null,
+                onPressed: () =>
+                    _run(() => serviceRecordForm(context, c, widget.equipment)),
+                icon: const Icon(Icons.add),
+                label: const Text('Ghi công việc'),
+              )
+            : null,
       );
     },
   );

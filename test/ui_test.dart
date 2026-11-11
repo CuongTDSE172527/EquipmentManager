@@ -6,6 +6,7 @@ import 'package:equipment_manager/domain/models.dart';
 import 'package:equipment_manager/services/notifications.dart';
 import 'package:equipment_manager/ui/controller.dart';
 import 'package:equipment_manager/ui/app.dart';
+import 'session_helper.dart';
 
 class SilentNotifications extends NotificationService {
   VoidCallback? open;
@@ -39,7 +40,7 @@ void main() {
         buildNumber: '1',
         buildSignature: '',
       );
-      await c.load();
+      await signInForTest(c);
       final notifications = SilentNotifications();
       await tester.pumpWidget(
         EquipmentManagerApp(controller: c, notifications: notifications),

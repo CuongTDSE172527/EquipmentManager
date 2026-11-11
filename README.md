@@ -1,6 +1,27 @@
 # EquipmentManager
 
-Ứng dụng quản lý trang thiết bị ngoại tuyến cho Windows 10/11 x64 và Android 8 trở lên. Toàn bộ giao diện bằng tiếng Việt, không cần tài khoản hoặc máy chủ. Mỗi máy có database SQLite riêng; chuyển dữ liệu bằng sao lưu/khôi phục.
+Ứng dụng quản lý trang thiết bị ngoại tuyến cho Windows 10/11 x64 và Android 8 trở lên. Toàn bộ giao diện bằng tiếng Việt, không cần máy chủ. Từ 0.4.0, người dùng đăng nhập bằng tài khoản cục bộ trên từng máy. Mỗi máy có database SQLite riêng; chuyển dữ liệu bằng sao lưu/khôi phục.
+
+## Mới trong 0.4.0 Beta — tài khoản, bảo mật, nền đồng bộ
+
+- **Lần mở đầu sau khi cập nhật:** tạo tài khoản **Quản trị** và cất **mã khôi phục**. Dữ liệu hiện có giữ nguyên. Từ đó luôn phải đăng nhập.
+- **Đăng ký, đăng nhập, đăng xuất, hồ sơ.**
+  - Người khác tự đăng ký và chờ Quản trị duyệt, hoặc Quản trị tạo tài khoản với mật khẩu tạm.
+  - Có ba vai trò: **Quản trị**, **Cán bộ kỹ thuật** (sửa dữ liệu, sao lưu) và **Chỉ xem** (xem, xuất báo cáo).
+  - Đổi mật khẩu, mã khôi phục và hồ sơ trong *Cài đặt → Hồ sơ của tôi*.
+- **Bảo mật:**
+  - Mật khẩu băm PBKDF2 (210.000 vòng).
+  - Sai 5 lần thì tạm khóa tài khoản, thời gian khóa tăng dần.
+  - **Tự khóa** khi không dùng, mỗi người tự chọn thời gian (mặc định 10 phút, tắt được).
+  - **Nhật ký thao tác** ghi ai làm gì, lúc nào; Quản trị xem và xuất Excel được.
+  - **Sao lưu mã hóa AES-256** bằng mật khẩu sao lưu riêng (file `.backup.enc`).
+- **Nền đồng bộ (chưa gửi dữ liệu đi đâu):**
+  - Mọi bản ghi có phiên bản, thời điểm, người sửa và mã thiết bị; xóa để lại tombstone; có hàng chờ thay đổi.
+  - Có giao diện `SyncTransport` để sau này nối máy chủ đám mây hoặc máy chủ nội bộ.
+- SQLite **schema 4**, tự nâng khi mở. Định dạng sao lưu vẫn là 3; tài khoản và nhật ký không nằm trong bản sao lưu.
+- Bản 0.3.0 trở về trước không đọc được file sao lưu `.enc`. Nếu cần mở bằng bản cũ, chọn *Không mã hóa* khi sao lưu.
+
+Chi tiết: [Tài khoản và bảo mật](docs/BAO-MAT.md), kể cả các giới hạn (database trên máy chưa mã hóa, không có cửa sau khi mất mật khẩu Quản trị), và [Khuôn mẫu đồng bộ](docs/SYNC.md).
 
 ## Mới trong 0.3.0 Beta — tệp đính kèm
 
@@ -66,7 +87,8 @@ Flutter **3.47.9**, Dart đi kèm SDK; phiên bản thư viện khóa trong `pub
 lib/domain/     Model, lịch ngày/tháng, trạng thái, gia hạn, phân tích nhập liệu
 lib/data/       Drift/SQLite, quan hệ, giao dịch, migration, sao lưu
 lib/services/   Đọc/ghi Excel/CSV, thông báo, vị trí dữ liệu
-lib/ui/         Màn hình, biểu mẫu, bộ lọc, danh mục
+lib/ui/         Màn hình, biểu mẫu, bộ lọc, danh mục, đăng nhập, tài khoản
+lib/sync/       Khuôn mẫu đồng bộ (SyncTransport, SyncEngine)
 test/          Nghiệp vụ, repository, nhập/xuất, widget desktop/điện thoại
 installer/     Inno Setup, bản dịch tiếng Việt, gỡ lịch nhắc
 tool/          Mẫu Excel, phiên bản, kiểm tra nguồn cục bộ, thiết lập ký

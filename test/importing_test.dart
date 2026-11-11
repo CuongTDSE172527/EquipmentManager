@@ -6,6 +6,7 @@ import 'package:equipment_manager/domain/importing.dart';
 import 'package:equipment_manager/services/spreadsheets.dart';
 import 'package:equipment_manager/data/database.dart';
 import 'package:equipment_manager/ui/controller.dart';
+import 'session_helper.dart';
 
 void main() {
   test('Nhận tiêu đề nhóm I/II ở cột STT, cho đánh số lại trong mỗi nhóm', () {
@@ -49,7 +50,7 @@ void main() {
         provider: 'Đơn vị thử',
       );
       await repo.recordCompletion(i, log);
-      await c.load();
+      await signInForTest(c);
       final metadata = Equipment(
         name: 'Xe thử',
         controlPlate: 'CAH-99-999',
@@ -220,7 +221,7 @@ void main() {
           oldControlPlate: 'CAH-10101',
         );
         await repo.saveEquipment(existing);
-        await c.load();
+        await signInForTest(c);
         final p = ImportPlan();
         parseEquipmentRows(
           p,

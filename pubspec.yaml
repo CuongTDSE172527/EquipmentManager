@@ -1,7 +1,7 @@
-﻿name: equipment_manager
-description: Quáº£n lÃ½ trang thiáº¿t bá»‹ vÃ  nháº¯c háº¡n ngoáº¡i tuyáº¿n.
+name: equipment_manager
+description: Quản lý trang thiết bị và nhắc hạn ngoại tuyến.
 publish_to: none
-version: 0.3.0+3000
+version: 0.4.0+4000
 environment:
   sdk: '>=3.11.0 <4.0.0'
 dependencies:
@@ -26,6 +26,7 @@ dependencies:
   package_info_plus: ^9.0.0
   uuid: ^4.5.2
   crypto: ^3.0.8
+  pointycastle: 3.9.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -25,6 +25,14 @@ EQUIPMENTMANAGER — HƯỚNG DẪN NHANH
    (PDF/ảnh/Word/Excel, tối đa 25 MB). Bấm vào tệp để mở. Sao lưu nay là file
    .zip chứa cả tệp đính kèm; vẫn khôi phục được file .json cũ.
 
+10. Từ 0.4.0 Beta: lần mở đầu tạo tài khoản Quản trị và CHÉP MÃ KHÔI PHỤC ra
+   giấy. Người khác bấm Đăng ký tài khoản rồi chờ Quản trị duyệt (Cài đặt →
+   Quản trị → Quản lý tài khoản). Nên có ít nhất 2 Quản trị.
+   Quên mật khẩu: dùng mã khôi phục ở màn hình đăng nhập, hoặc nhờ Quản trị
+   đặt lại. Tự khóa: Cài đặt → Hồ sơ của tôi.
+   Sao lưu nay hỏi mật khẩu sao lưu (file .enc). Mất mật khẩu này là không mở
+   được file. Xem docs/BAO-MAT.md.
+
 ĐỎ: quá hạn. VÀNG: sắp đến hạn. XANH: còn hạn. XÁM: cần cập nhật.
 Ngày dạng MM/yyyy có hạn đến ngày cuối tháng đó.
 Không áp dụng / ACV mua tập trung không phát cảnh báo.

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../domain/accounts.dart';
 import '../domain/models.dart';
 import '../domain/deadlines.dart';
 import '../domain/updates.dart';
@@ -14,6 +15,7 @@ import '../services/update_installer.dart';
 import '../services/updates.dart';
 import 'controller.dart';
 import 'attachments_section.dart';
+import 'auth_screens.dart';
 import 'forms.dart';
 import 'data_page.dart';
 import 'settings_page.dart';
@@ -83,8 +85,11 @@ class EquipmentManagerApp extends StatefulWidget {
   State<EquipmentManagerApp> createState() => _AppState();
 }
 
-class _AppState extends State<EquipmentManagerApp> {
+class _AppState extends State<EquipmentManagerApp> with WidgetsBindingObserver {
   final navigator = GlobalKey<NavigatorState>();
+  Timer? _idle;
+  DateTime? _backgroundAt;
+  String? _sessionUser;
   final search = TextEditingController();
   final searchFocus = FocusNode();
   int page = 0, sortColumn = 0;
@@ -102,7 +107,75 @@ class _AppState extends State<EquipmentManagerApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    HardwareKeyboard.instance.addHandler(_onKey);
+    c.addListener(_onSession);
+    _onSession();
     unawaited(_initialize());
+  }
+
+  bool get _canEdit => c.can(Permission.editData);
+  int get _lockMinutes => c.user?.autoLockMinutes ?? 0;
+
+  bool _onKey(KeyEvent _) {
+    _activity();
+    return false;
+  }
+
+  /// Restarts the idle countdown on any pointer or key input.
+  void _activity() {
+    _idle?.cancel();
+    if (c.user == null || c.locked || _lockMinutes == 0) return;
+    _idle = Timer(Duration(minutes: _lockMinutes), c.lock);
+  }
+
+  /// The controller also notifies every minute for the clock, so the idle
+  /// countdown restarts only on real session changes, never on that tick.
+  void _onSession() {
+    final id = c.user?.id;
+    final key = '$id|${c.locked}|$_lockMinutes';
+    if (key == _sessionKey) return;
+    if (id != _sessionUser) {
+      // Signed out or another user: nothing of the previous session stays open.
+      if (_sessionUser != null) {
+        navigator.currentState?.popUntil((r) => r.isFirst);
+        if (mounted) setState(() => page = 0);
+      }
+      _sessionUser = id;
+    }
+    _sessionKey = key;
+    if (c.locked) {
+      _idle?.cancel();
+    } else {
+      _activity();
+    }
+  }
+
+  String? _sessionKey;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Timers may not run while the app is in the background, so the elapsed
+    // time is checked again when it comes back.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _backgroundAt ??= c.clock();
+    } else if (state == AppLifecycleState.resumed) {
+      final away = _backgroundAt;
+      _backgroundAt = null;
+      if (away != null &&
+          _lockMinutes > 0 &&
+          c.clock().difference(away).inMinutes >= _lockMinutes) {
+        c.lock();
+      } else {
+        _activity();
+      }
+    }
+  }
+
+  Future<void> _signOut() async {
+    navigator.currentState?.popUntil((r) => r.isFirst);
+    await c.signOut();
   }
 
   void _later(String text) => WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -154,7 +227,11 @@ class _AppState extends State<EquipmentManagerApp> {
         includePrereleases: c.settings.updateIncludePrereleases,
         cancel: UpdateCancellation(),
       );
-      await c.updateSettings({'lastUpdateCheck': c.clock().toIso8601String()});
+      // A background bookkeeping write, allowed before anyone signs in.
+      await c.repository.saveSettings(
+        c.settings.copy({'lastUpdateCheck': c.clock().toIso8601String()}),
+      );
+      await c.load();
       if (mounted) setState(() => pendingUpdate = result);
     } catch (_) {
       // Offline or rate-limited: stay quiet and try again on the next launch.
@@ -215,6 +292,55 @@ class _AppState extends State<EquipmentManagerApp> {
     page = 1;
     confirmOnly = true;
   });
+
+  Widget _userMenu(BuildContext context, {required bool sidebar}) {
+    final user = c.user!;
+    final menu = PopupMenuButton<String>(
+      tooltip: 'Tài khoản',
+      onSelected: (v) {
+        switch (v) {
+          case 'profile':
+            _navigate(4);
+          case 'lock':
+            c.lock();
+          case 'logout':
+            unawaited(_run(_signOut));
+        }
+      },
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'profile', child: Text('Hồ sơ của tôi')),
+        PopupMenuItem(value: 'lock', child: Text('Khóa màn hình')),
+        PopupMenuItem(value: 'logout', child: Text('Đăng xuất')),
+      ],
+      icon: sidebar
+          ? const Icon(Icons.more_vert, color: Color(0xFFB5CBD5))
+          : CircleAvatar(
+              radius: 15,
+              child: Text(user.label.characters.first.toUpperCase()),
+            ),
+    );
+    if (!sidebar) return menu;
+    return ListTile(
+      contentPadding: const EdgeInsets.only(left: 12),
+      leading: CircleAvatar(
+        radius: 16,
+        backgroundColor: const Color(0xFF244958),
+        foregroundColor: Colors.white,
+        child: Text(user.label.characters.first.toUpperCase()),
+      ),
+      title: Text(
+        user.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Colors.white, fontSize: 13),
+      ),
+      subtitle: Text(
+        user.role.label,
+        style: const TextStyle(color: Color(0xFF91ACBA), fontSize: 11),
+      ),
+      trailing: menu,
+    );
+  }
 
   Widget _navIcon(int n, IconData icon) => n == 4 && pendingUpdate != null
       ? Badge(label: const Text('Mới'), child: Icon(icon))
@@ -285,12 +411,17 @@ class _AppState extends State<EquipmentManagerApp> {
     }),
   );
   void _new() {
+    if (!_canEdit || page > 2) return;
     final ctx = navigator.currentContext!;
     unawaited(_run(() => page == 1 ? itemForm(ctx, c) : equipmentForm(ctx, c)));
   }
 
   @override
   void dispose() {
+    _idle?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    c.removeListener(_onSession);
     search.dispose();
     searchFocus.dispose();
     super.dispose();
@@ -361,211 +492,175 @@ class _AppState extends State<EquipmentManagerApp> {
         'light' => ThemeMode.light,
         _ => ThemeMode.system,
       },
-      home: Builder(
-        builder: (context) => CallbackShortcuts(
-          bindings: {
-            const SingleActivator(LogicalKeyboardKey.keyN, control: true): _new,
-            const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
-              if (page > 2) setState(() => page = 1);
-              searchFocus.requestFocus();
-            },
-          },
-          child: Focus(
-            autofocus: true,
-            child: LayoutBuilder(
-              builder: (context, bounds) {
-                final wide = bounds.maxWidth >= 960;
-                const titles = [
-                  'Tổng quan',
-                  'Theo dõi hạn',
-                  'Thiết bị',
-                  'Dữ liệu & báo cáo',
-                  'Cài đặt',
-                ];
-                const icons = [
-                  Icons.dashboard_outlined,
-                  Icons.event_note_outlined,
-                  Icons.airport_shuttle_outlined,
-                  Icons.folder_outlined,
-                  Icons.settings_outlined,
-                ];
-                return Scaffold(
-                  appBar: wide
-                      ? null
-                      : AppBar(
-                          title: Text(titles[page]),
-                          actions: [
-                            IconButton(
-                              tooltip: 'Làm mới',
-                              onPressed: () => _run(c.load),
-                              icon: const Icon(Icons.refresh),
-                            ),
-                          ],
-                        ),
-                  body: SafeArea(
-                    child: Row(
-                      children: [
-                        if (wide)
-                          Container(
-                            width: 240,
-                            color: const Color(0xFF122B3A),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 28,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 12),
-                                  child: Image(
-                                    image: AssetImage('assets/brand/logo.png'),
-                                    width: 52,
-                                    height: 52,
+      // The lock screen covers every route, dialogs included, and keeps any
+      // half-filled form underneath for when the same user unlocks.
+      builder: (context, child) => Listener(
+        onPointerDown: (_) => _activity(),
+        onPointerSignal: (_) => _activity(),
+        child: Stack(
+          children: [
+            ExcludeSemantics(excluding: c.locked, child: child!),
+            if (c.locked && c.user != null)
+              // Its own Overlay: the text field needs one for selection
+              // handles, and this layer sits above the app's Navigator.
+              Positioned.fill(
+                child: Overlay(
+                  initialEntries: [
+                    OverlayEntry(
+                      builder: (_) =>
+                          LockScreen(controller: c, onSignOut: _signOut),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+      home: c.loading
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          : !c.hasAccounts || c.user == null || c.user!.mustChangePassword
+          ? AuthGate(controller: c)
+          : Builder(
+              builder: (context) => CallbackShortcuts(
+                bindings: {
+                  const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+                      _new,
+                  const SingleActivator(
+                    LogicalKeyboardKey.keyF,
+                    control: true,
+                  ): () {
+                    if (page > 2) setState(() => page = 1);
+                    searchFocus.requestFocus();
+                  },
+                },
+                child: Focus(
+                  autofocus: true,
+                  child: LayoutBuilder(
+                    builder: (context, bounds) {
+                      final wide = bounds.maxWidth >= 960;
+                      const titles = [
+                        'Tổng quan',
+                        'Theo dõi hạn',
+                        'Thiết bị',
+                        'Dữ liệu & báo cáo',
+                        'Cài đặt',
+                      ];
+                      const icons = [
+                        Icons.dashboard_outlined,
+                        Icons.event_note_outlined,
+                        Icons.airport_shuttle_outlined,
+                        Icons.folder_outlined,
+                        Icons.settings_outlined,
+                      ];
+                      return Scaffold(
+                        appBar: wide
+                            ? null
+                            : AppBar(
+                                title: Text(titles[page]),
+                                actions: [
+                                  IconButton(
+                                    tooltip: 'Làm mới',
+                                    onPressed: () => _run(c.load),
+                                    icon: const Icon(Icons.refresh),
                                   ),
-                                ),
-                                const SizedBox(height: 16),
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 12),
-                                  child: Text(
-                                    'EquipmentManager',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.fromLTRB(12, 5, 0, 28),
-                                  child: Text(
-                                    'QUẢN LÝ TRANG THIẾT BỊ',
-                                    style: TextStyle(
-                                      color: Color(0xFF91ACBA),
-                                      fontSize: 10,
-                                      letterSpacing: 1.2,
-                                    ),
-                                  ),
-                                ),
-                                for (var n = 0; n < titles.length; n++)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 6),
-                                    child: Material(
-                                      color: Colors.transparent,
-                                      child: ListTile(
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                        selected: page == n,
-                                        selectedTileColor: const Color(
-                                          0xFF244958,
-                                        ),
-                                        selectedColor: Colors.white,
-                                        textColor: const Color(0xFFB5CBD5),
-                                        iconColor: const Color(0xFFB5CBD5),
-                                        leading: _navIcon(n, icons[n]),
-                                        title: Text(titles[n]),
-                                        onTap: () => _navigate(n),
-                                      ),
-                                    ),
-                                  ),
-                                const Spacer(),
-                                const Divider(color: Color(0xFF35505F)),
-                                const ListTile(
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                  ),
-                                  leading: Icon(
-                                    Icons.offline_pin_outlined,
-                                    color: Color(0xFF74D7CF),
-                                  ),
-                                  title: Text(
-                                    'Dữ liệu trên máy',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    'Hoạt động ngoại tuyến',
-                                    style: TextStyle(
-                                      color: Color(0xFF91ACBA),
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                                if (version.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 12),
-                                    child: Text(
-                                      'Phiên bản $version${version.startsWith('0.') ? ' Beta' : ''}',
-                                      style: const TextStyle(
-                                        color: Color(0xFF91ACBA),
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                                  _userMenu(context, sidebar: false),
+                                ],
+                              ),
+                        body: SafeArea(
+                          child: Row(
                             children: [
                               if (wide)
                                 Container(
+                                  width: 240,
+                                  color: const Color(0xFF122B3A),
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 32,
-                                    vertical: 22,
+                                    horizontal: 16,
+                                    vertical: 28,
                                   ),
-                                  color: Theme.of(context).colorScheme.surface,
-                                  child: Row(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              titles[page],
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .headlineSmall
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              c.settings.agency,
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.bodySmall,
-                                            ),
-                                          ],
+                                      const Padding(
+                                        padding: EdgeInsets.only(left: 12),
+                                        child: Image(
+                                          image: AssetImage(
+                                            'assets/brand/logo.png',
+                                          ),
+                                          width: 52,
+                                          height: 52,
                                         ),
                                       ),
-                                      Text(displayDate(c.clock())),
-                                      const SizedBox(width: 16),
-                                      IconButton(
-                                        tooltip: 'Làm mới',
-                                        onPressed: () => _run(c.load),
-                                        icon: const Icon(Icons.refresh),
+                                      const SizedBox(height: 16),
+                                      const Padding(
+                                        padding: EdgeInsets.only(left: 12),
+                                        child: Text(
+                                          'EquipmentManager',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
-                                      if (page < 3)
+                                      const Padding(
+                                        padding: EdgeInsets.fromLTRB(
+                                          12,
+                                          5,
+                                          0,
+                                          28,
+                                        ),
+                                        child: Text(
+                                          'QUẢN LÝ TRANG THIẾT BỊ',
+                                          style: TextStyle(
+                                            color: Color(0xFF91ACBA),
+                                            fontSize: 10,
+                                            letterSpacing: 1.2,
+                                          ),
+                                        ),
+                                      ),
+                                      for (var n = 0; n < titles.length; n++)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 6,
+                                          ),
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: ListTile(
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                              selected: page == n,
+                                              selectedTileColor: const Color(
+                                                0xFF244958,
+                                              ),
+                                              selectedColor: Colors.white,
+                                              textColor: const Color(
+                                                0xFFB5CBD5,
+                                              ),
+                                              iconColor: const Color(
+                                                0xFFB5CBD5,
+                                              ),
+                                              leading: _navIcon(n, icons[n]),
+                                              title: Text(titles[n]),
+                                              onTap: () => _navigate(n),
+                                            ),
+                                          ),
+                                        ),
+                                      const Spacer(),
+                                      const Divider(color: Color(0xFF35505F)),
+                                      _userMenu(context, sidebar: true),
+                                      if (version.isNotEmpty)
                                         Padding(
                                           padding: const EdgeInsets.only(
                                             left: 12,
                                           ),
-                                          child: FilledButton.icon(
-                                            onPressed: _new,
-                                            icon: const Icon(Icons.add),
-                                            label: Text(
-                                              page == 1
-                                                  ? 'Thêm hạng mục'
-                                                  : 'Thêm thiết bị',
+                                          child: Text(
+                                            'Ngoại tuyến • Phiên bản $version${version.startsWith('0.') ? ' Beta' : ''}',
+                                            style: const TextStyle(
+                                              color: Color(0xFF91ACBA),
+                                              fontSize: 11,
                                             ),
                                           ),
                                         ),
@@ -573,65 +668,132 @@ class _AppState extends State<EquipmentManagerApp> {
                                   ),
                                 ),
                               Expanded(
-                                child: c.loading
-                                    ? const Center(
-                                        child: CircularProgressIndicator(),
-                                      )
-                                    : switch (page) {
-                                        0 => _overview(context),
-                                        1 => _deadlines(context, wide),
-                                        2 => _equipment(context),
-                                        3 => DataPage(
-                                          controller: c,
-                                          onError: _message,
-                                          autoBackup: widget.autoBackup,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (wide)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 32,
+                                          vertical: 22,
                                         ),
-                                        _ => SettingsPage(
-                                          controller: c,
-                                          notifications: widget.notifications,
-                                          onError: _message,
-                                          pendingUpdate: pendingUpdate,
-                                          updates: widget.updates,
-                                          installer: widget.installer,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.surface,
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    titles[page],
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .headlineSmall
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    c.settings.agency,
+                                                    style: Theme.of(
+                                                      context,
+                                                    ).textTheme.bodySmall,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            Text(displayDate(c.clock())),
+                                            const SizedBox(width: 16),
+                                            IconButton(
+                                              tooltip: 'Làm mới',
+                                              onPressed: () => _run(c.load),
+                                              icon: const Icon(Icons.refresh),
+                                            ),
+                                            if (page < 3 && _canEdit)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  left: 12,
+                                                ),
+                                                child: FilledButton.icon(
+                                                  onPressed: _new,
+                                                  icon: const Icon(Icons.add),
+                                                  label: Text(
+                                                    page == 1
+                                                        ? 'Thêm hạng mục'
+                                                        : 'Thêm thiết bị',
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
-                                      },
+                                      ),
+                                    Expanded(
+                                      child: c.loading
+                                          ? const Center(
+                                              child:
+                                                  CircularProgressIndicator(),
+                                            )
+                                          : switch (page) {
+                                              0 => _overview(context),
+                                              1 => _deadlines(context, wide),
+                                              2 => _equipment(context),
+                                              3 => DataPage(
+                                                controller: c,
+                                                onError: _message,
+                                                autoBackup: widget.autoBackup,
+                                              ),
+                                              _ => SettingsPage(
+                                                controller: c,
+                                                notifications:
+                                                    widget.notifications,
+                                                onError: _message,
+                                                pendingUpdate: pendingUpdate,
+                                                updates: widget.updates,
+                                                installer: widget.installer,
+                                              ),
+                                            },
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  floatingActionButton: !wide && page < 3
-                      ? FloatingActionButton(
-                          heroTag: null,
-                          onPressed: _new,
-                          tooltip: page == 1
-                              ? 'Thêm hạng mục'
-                              : 'Thêm thiết bị',
-                          child: const Icon(Icons.add),
-                        )
-                      : null,
-                  bottomNavigationBar: wide
-                      ? null
-                      : NavigationBar(
-                          animationDuration: Duration.zero,
-                          selectedIndex: page,
-                          onDestinationSelected: _navigate,
-                          destinations: [
-                            for (var n = 0; n < titles.length; n++)
-                              NavigationDestination(
-                                icon: _navIcon(n, icons[n]),
-                                label: titles[n],
+                        floatingActionButton: !wide && page < 3 && _canEdit
+                            ? FloatingActionButton(
+                                heroTag: null,
+                                onPressed: _new,
+                                tooltip: page == 1
+                                    ? 'Thêm hạng mục'
+                                    : 'Thêm thiết bị',
+                                child: const Icon(Icons.add),
+                              )
+                            : null,
+                        bottomNavigationBar: wide
+                            ? null
+                            : NavigationBar(
+                                animationDuration: Duration.zero,
+                                selectedIndex: page,
+                                onDestinationSelected: _navigate,
+                                destinations: [
+                                  for (var n = 0; n < titles.length; n++)
+                                    NavigationDestination(
+                                      icon: _navIcon(n, icons[n]),
+                                      label: titles[n],
+                                    ),
+                                ],
                               ),
-                          ],
-                        ),
-                );
-              },
+                      );
+                    },
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
-      ),
     ),
   );
   Widget _empty(BuildContext context, String title, String detail) => Card(
@@ -1122,14 +1284,15 @@ class _AppState extends State<EquipmentManagerApp> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
-              PopupMenuButton<String>(
-                tooltip: 'Thao tác',
-                onSelected: (v) => _itemAction(context, r.item, v),
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: Text('Sửa hạng mục')),
-                  PopupMenuItem(value: 'delete', child: Text('Xóa hạng mục')),
-                ],
-              ),
+              if (_canEdit)
+                PopupMenuButton<String>(
+                  tooltip: 'Thao tác',
+                  onSelected: (v) => _itemAction(context, r.item, v),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Sửa hạng mục')),
+                    PopupMenuItem(value: 'delete', child: Text('Xóa hạng mục')),
+                  ],
+                ),
             ],
           ),
           Text('${r.equipment.displayPlate} • ${r.item.title}'),
@@ -1158,13 +1321,13 @@ class _AppState extends State<EquipmentManagerApp> {
                 onPressed: () => _details(context, r.equipment),
                 child: const Text('Xem thiết bị'),
               ),
-              if (_needsConfirm(r))
+              if (_canEdit && _needsConfirm(r))
                 TextButton.icon(
                   onPressed: () => _confirmData(context, r),
                   icon: const Icon(Icons.fact_check_outlined, size: 18),
                   label: const Text('Xác nhận dữ liệu'),
                 ),
-              if (!r.item.isDone)
+              if (_canEdit && !r.item.isDone)
                 TextButton.icon(
                   onPressed: () =>
                       _run(() => completionForm(context, c, r.item)),
@@ -1253,29 +1416,31 @@ class _AppState extends State<EquipmentManagerApp> {
               DataCell(
                 Row(
                   children: [
-                    if (_needsConfirm(r))
+                    if (_canEdit && _needsConfirm(r))
                       IconButton(
                         tooltip: 'Xác nhận dữ liệu',
                         onPressed: () => _confirmData(context, r),
                         icon: const Icon(Icons.fact_check_outlined),
                       ),
-                    if (!r.item.isDone)
+                    if (_canEdit && !r.item.isDone)
                       IconButton(
                         tooltip: 'Gia hạn / Hoàn thành',
                         onPressed: () =>
                             _run(() => completionForm(context, c, r.item)),
                         icon: const Icon(Icons.task_alt),
                       ),
-                    IconButton(
-                      tooltip: 'Sửa hạng mục',
-                      onPressed: () => _itemAction(context, r.item, 'edit'),
-                      icon: const Icon(Icons.edit_outlined),
-                    ),
-                    IconButton(
-                      tooltip: 'Xóa hạng mục',
-                      onPressed: () => _itemAction(context, r.item, 'delete'),
-                      icon: const Icon(Icons.delete_outline),
-                    ),
+                    if (_canEdit)
+                      IconButton(
+                        tooltip: 'Sửa hạng mục',
+                        onPressed: () => _itemAction(context, r.item, 'edit'),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                    if (_canEdit)
+                      IconButton(
+                        tooltip: 'Xóa hạng mục',
+                        onPressed: () => _itemAction(context, r.item, 'delete'),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
                   ],
                 ),
               ),
@@ -1299,8 +1464,7 @@ class _AppState extends State<EquipmentManagerApp> {
             'Hạng mục và toàn bộ lịch sử của nó sẽ bị xóa.',
             action: 'Xóa',
           )) {
-            await c.repository.deleteItem(item.id);
-            await c.load();
+            await c.deleteItem(item.id);
           }
         }),
       );
@@ -1501,6 +1665,7 @@ class _AppState extends State<EquipmentManagerApp> {
                         controller: c,
                         equipment: e,
                         run: _run,
+                        canEdit: _canEdit,
                         opener: widget.opener,
                       ),
                       const SizedBox(height: 16),
@@ -1512,13 +1677,14 @@ class _AppState extends State<EquipmentManagerApp> {
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
                           ),
-                          TextButton.icon(
-                            onPressed: () => _run(
-                              () => itemForm(context, c, equipmentId: e.id),
+                          if (_canEdit)
+                            TextButton.icon(
+                              onPressed: () => _run(
+                                () => itemForm(context, c, equipmentId: e.id),
+                              ),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Thêm'),
                             ),
-                            icon: const Icon(Icons.add),
-                            label: const Text('Thêm'),
-                          ),
                         ],
                       ),
                       if (rows.isEmpty)
@@ -1560,31 +1726,32 @@ class _AppState extends State<EquipmentManagerApp> {
                 ),
               ),
               actions: [
-                TextButton(
-                  onPressed: () => _run(() async {
-                    if (await confirmAction(
-                      context,
-                      'Xóa thiết bị?',
-                      'Toàn bộ hạng mục và lịch sử của ${e.name} cũng sẽ bị xóa.',
-                      action: 'Xóa thiết bị',
-                    )) {
-                      await c.repository.deleteEquipment(e.id);
-                      await c.load();
-                      if (dialogContext.mounted) Navigator.pop(dialogContext);
-                    }
-                  }),
-                  child: Text(
-                    'Xóa thiết bị',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                if (_canEdit)
+                  TextButton(
+                    onPressed: () => _run(() async {
+                      if (await confirmAction(
+                        context,
+                        'Xóa thiết bị?',
+                        'Toàn bộ hạng mục và lịch sử của ${e.name} cũng sẽ bị xóa.',
+                        action: 'Xóa thiết bị',
+                      )) {
+                        await c.deleteEquipment(e.id);
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
+                      }
+                    }),
+                    child: Text(
+                      'Xóa thiết bị',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ),
-                ),
-                TextButton(
-                  onPressed: () =>
-                      _run(() => equipmentForm(context, c, equipment: e)),
-                  child: const Text('Sửa thông tin'),
-                ),
+                if (_canEdit)
+                  TextButton(
+                    onPressed: () =>
+                        _run(() => equipmentForm(context, c, equipment: e)),
+                    child: const Text('Sửa thông tin'),
+                  ),
                 FilledButton(
                   onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Đóng'),

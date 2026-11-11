@@ -1,5 +1,26 @@
 # Thay đổi
 
+## 0.4.0 Beta
+
+- **Tài khoản cục bộ**:
+  - Lần mở đầu tạo Quản trị kèm mã khôi phục.
+  - Đăng ký chờ duyệt, đăng nhập, đăng xuất, hồ sơ cá nhân, đổi mật khẩu, mã khôi phục dùng một lần.
+  - Quản trị tạo tài khoản với mật khẩu tạm, duyệt, đổi vai trò, khóa/mở, đặt lại mật khẩu; luôn giữ ít nhất một Quản trị.
+- **Vai trò** Quản trị / Cán bộ kỹ thuật / Chỉ xem: giao diện ẩn thao tác không được phép, controller chặn lại lần nữa.
+- **Bảo mật**:
+  - PBKDF2-HMAC-SHA256 210.000 vòng, chạy ngoài luồng giao diện.
+  - Tạm khóa sau 5 lần sai, thời gian khóa tăng dần; thông báo lỗi không lộ tên tài khoản có tồn tại hay không.
+  - Tự khóa theo lựa chọn của từng người (cả khi quay lại từ nền); màn hình khóa giữ nguyên biểu mẫu đang nhập.
+- **Nhật ký thao tác** cho đăng nhập, thay đổi dữ liệu, nhập, sao lưu, khôi phục, cài đặt, tài khoản; xem, tìm, xuất Excel; giữ 50.000 dòng.
+- **Sao lưu mã hóa** AES-256-GCM với PBKDF2 310.000 vòng (`.backup.enc`); phát hiện file bị sửa; vẫn nhận `.zip`/`.json`.
+- **Nền đồng bộ**:
+  - Bảng `sync_state` (phiên bản, tombstone, hàng chờ), mã thiết bị.
+  - `SyncTransport`/`SyncEngine` với quy tắc bản mới nhất thắng; chưa có máy chủ nên không gửi dữ liệu.
+  - Đặc tả ở `docs/SYNC.md`.
+- SQLite schema 4 (tự nâng từ 1–3). Tài khoản, nhật ký, trạng thái đồng bộ không nằm trong bản sao lưu.
+- Thêm thư viện `pointycastle` 3.9.1 (thuần Dart).
+- Sửa lỗi mã hóa ký tự ở mô tả `pubspec.yaml` và chuỗi tiếng Việt trong một kiểm thử của 0.3.0.
+
 ## 0.3.0 Beta
 
 - **Tệp đính kèm** cho thiết bị: PDF, ảnh, Word, Excel tối đa 25 MB; tên hiển thị, ghi chú, gắn với hạng mục hoặc công việc sổ bảo trì; mở bằng ứng dụng mặc định (Android qua FileProvider), lưu bản sao, sửa, xóa. Xóa hạng mục/công việc giữ tệp; xóa thiết bị xóa tệp.

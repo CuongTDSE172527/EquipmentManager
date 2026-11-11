@@ -10,6 +10,7 @@ import 'package:equipment_manager/services/attachment_files.dart';
 import 'package:equipment_manager/ui/app.dart';
 import 'package:equipment_manager/ui/controller.dart';
 import 'ui_test.dart' show SilentNotifications;
+import 'session_helper.dart';
 
 class FakeOpener extends AttachmentOpener {
   FakeOpener();
@@ -50,7 +51,7 @@ void main() {
       );
       await repo.addAttachment(a, data);
       final c = AppController(repo);
-      await c.load();
+      await signInForTest(c);
       final opener = FakeOpener();
       await tester.pumpWidget(
         EquipmentManagerApp(
@@ -61,7 +62,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       if (size.width >= 960) {
-        expect(find.text('Phiên bản 0.3.0 Beta'), findsOneWidget);
+        expect(find.text('Ngoại tuyến • Phiên bản 0.3.0 Beta'), findsOneWidget);
       }
       await tester.tap(find.text('Thiết bị').last);
       await tester.pumpAndSettle();

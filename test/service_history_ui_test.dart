@@ -6,6 +6,7 @@ import 'package:equipment_manager/domain/models.dart';
 import 'package:equipment_manager/domain/deadlines.dart';
 import 'package:equipment_manager/ui/controller.dart';
 import 'package:equipment_manager/ui/service_history_page.dart';
+import 'session_helper.dart';
 
 void main() {
   for (final size in [const Size(1280, 900), const Size(360, 640)]) {
@@ -36,7 +37,7 @@ void main() {
         provider: 'Đơn vị cũ',
       );
       await repo.recordCompletion(done.item, done.history);
-      await c.load();
+      await signInForTest(c);
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('vi', 'VN'),

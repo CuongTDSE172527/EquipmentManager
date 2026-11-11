@@ -5,6 +5,7 @@ import 'package:equipment_manager/domain/models.dart';
 import 'package:equipment_manager/domain/deadlines.dart';
 import 'package:equipment_manager/ui/controller.dart';
 import 'package:equipment_manager/ui/forms.dart';
+import 'session_helper.dart';
 
 void main() {
   testWidgets('Sửa bảo hiểm Hết sang hạn mới không còn cờ hết hạn cũ', (
@@ -24,7 +25,7 @@ void main() {
       expiredWithoutDate: true,
     );
     await repo.saveItem(item);
-    await c.load();
+    await signInForTest(c);
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(

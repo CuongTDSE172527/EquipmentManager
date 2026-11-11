@@ -38,8 +38,12 @@ class AttachmentsSection extends StatelessWidget {
     required this.equipment,
     required this.run,
     this.opener = const AttachmentOpener(),
+    this.canEdit = true,
   });
   final AppController controller;
+
+  /// Read-only roles may open and save copies but not add, edit or delete.
+  final bool canEdit;
   final Equipment equipment;
   final Future<void> Function(Future<void> Function()) run;
   final AttachmentOpener opener;
@@ -62,11 +66,12 @@ class AttachmentsSection extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
-            TextButton.icon(
-              onPressed: () => run(() => _add(context)),
-              icon: const Icon(Icons.attach_file),
-              label: const Text('Thêm tệp'),
-            ),
+            if (canEdit)
+              TextButton.icon(
+                onPressed: () => run(() => _add(context)),
+                icon: const Icon(Icons.attach_file),
+                label: const Text('Thêm tệp'),
+              ),
           ],
         ),
         if (files.isEmpty)
@@ -95,11 +100,13 @@ class AttachmentsSection extends StatelessWidget {
             trailing: PopupMenuButton<String>(
               tooltip: 'Thao tác tệp',
               onSelected: (v) => unawaited(run(() => _action(context, a, v))),
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'open', child: Text('Mở')),
-                PopupMenuItem(value: 'save', child: Text('Lưu bản sao')),
-                PopupMenuItem(value: 'edit', child: Text('Sửa thông tin')),
-                PopupMenuItem(value: 'delete', child: Text('Xóa tệp')),
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'open', child: Text('Mở')),
+                const PopupMenuItem(value: 'save', child: Text('Lưu bản sao')),
+                if (canEdit) ...const [
+                  PopupMenuItem(value: 'edit', child: Text('Sửa thông tin')),
+                  PopupMenuItem(value: 'delete', child: Text('Xóa tệp')),
+                ],
               ],
             ),
           ),
