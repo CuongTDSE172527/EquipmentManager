@@ -5,7 +5,7 @@
 Bản bảo trì: nâng thư viện và công cụ build, không đổi dữ liệu hay cách dùng. Cập nhật thẳng từ 0.4.0 bằng OTA.
 
 - **Rà lỗ hổng**: đối chiếu toàn bộ 88 gói Dart trong `pubspec.lock` với cơ sở dữ liệu OSV, không gói nào có lỗ hổng đã công bố. Hai lỗ hổng cũ của `archive` chỉ ảnh hưởng bản dưới 3.3.8, app dùng 3.6.1.
-- **Android**: Gradle 9.3.1 → 9.8.2 (kèm kiểm tra SHA-256 của bộ cài Gradle), Android Gradle Plugin 9.1.0 → 9.4.1, Kotlin 2.4.0 → 2.4.21.
+- **Android**: Gradle 9.3.1 → 9.8.2 (kèm kiểm tra SHA-256 của bộ cài Gradle), Android Gradle Plugin 9.1.0 → 9.4.1, Kotlin 2.4.0 → 2.4.21. Chuyển sang Built-in Kotlin của AGP 9 (`android.builtInKotlin=true`) theo yêu cầu của Flutter, tránh lỗi build ở các bản Flutter sau.
 - **SQLite gốc vẫn là 3.54.0**. Bản 3.54.1 sửa một lỗi tràn bộ nhớ trên bản build 32-bit, nhưng gói `sqlite3` cho Dart chưa có bản kèm 3.54.1. Ảnh hưởng thấp: app chỉ chạy câu lệnh SQL của chính nó và không mở file database lạ. Sẽ nâng khi gói có bản mới.
 - **GitHub Actions chạy Node.js 24**: `actions/checkout@v6`, `upload-artifact@v7`, `download-artifact@v8`, `setup-java@v5`, `gradle/actions/setup-gradle@v5`. Giữ `setup-gradle` ở v5 vì v6 kèm điều khoản sử dụng thương mại cho phần lưu cache.
 - **Nâng thư viện**:
