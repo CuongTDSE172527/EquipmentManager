@@ -145,23 +145,23 @@ class SpreadsheetService {
               : HorizontalAlign.Left,
           textWrapping: TextWrapping.WrapText,
           backgroundColorHex: ExcelColor.fromHexString(
-            r == header ? 'E2E8F0' : 'FFFFFF',
+            r == header ? 'FFE2E8F0' : 'FFFFFFFF',
           ),
           leftBorder: Border(
             borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.fromHexString('D9D9D9'),
+            borderColorHex: ExcelColor.fromHexString('FFD9D9D9'),
           ),
           rightBorder: Border(
             borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.fromHexString('D9D9D9'),
+            borderColorHex: ExcelColor.fromHexString('FFD9D9D9'),
           ),
           topBorder: Border(
             borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.fromHexString('D9D9D9'),
+            borderColorHex: ExcelColor.fromHexString('FFD9D9D9'),
           ),
           bottomBorder: Border(
             borderStyle: BorderStyle.Thin,
-            borderColorHex: ExcelColor.fromHexString('D9D9D9'),
+            borderColorHex: ExcelColor.fromHexString('FFD9D9D9'),
           ),
         );
       }

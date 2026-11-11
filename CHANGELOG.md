@@ -1,5 +1,12 @@
 # Thay đổi
 
+## Chưa phát hành
+
+- **Sửa lỗi Excel báo "We found a problem with some content" rồi tự sửa `styles.xml`** khi mở mọi file app xuất ra (kế hoạch, theo dõi, phụ lục, hạng mục/lịch sử) và mẫu nhập. Lỗi có từ 0.1.x.
+  - Nguyên nhân: thư viện `excel` chỉ ghi màu nền dạng ARGB 8 ký tự bắt đầu bằng `FF`. Màu nền tiêu đề `E2E8F0` (6 ký tự) bị bỏ, nhưng vẫn được đếm và vẫn có ô trỏ tới.
+  - Sửa: dùng mã màu 8 ký tự (`FFE2E8F0`, `FFFFFFFF`, `FFD9D9D9`). Hàng tiêu đề giờ có nền xám như thiết kế.
+  - Thêm kiểm thử đọc `styles.xml` của mọi file xuất ra, kiểm tra số lượng khai báo, chỉ số font/nền/viền/định dạng số và mã màu.
+
 ## 0.4.1 Beta
 
 Bản bảo trì: nâng thư viện và công cụ build, không đổi dữ liệu hay cách dùng. Cập nhật thẳng từ 0.4.0 bằng OTA.
