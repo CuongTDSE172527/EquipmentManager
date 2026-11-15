@@ -162,6 +162,50 @@ class AppController extends ChangeNotifier {
     await load();
   }
 
+  /// Adds files one by one (each is validated) and refreshes once.
+  Future<void> addAttachments(Stream<(Attachment, Uint8List)> files) async {
+    require(Permission.editData);
+    try {
+      await for (final (a, data) in files) {
+        await repository.addAttachment(a, data);
+      }
+    } finally {
+      await load();
+    }
+  }
+
+  Future<void> renameAttachmentFolder(
+    String equipmentId,
+    String from,
+    String to,
+  ) async {
+    require(Permission.editData);
+    await repository.renameAttachmentFolder(equipmentId, from, to);
+    await load();
+  }
+
+  Future<int> deleteAttachmentFolder(String equipmentId, String folder) async {
+    require(Permission.editData);
+    final count = await repository.deleteAttachmentFolder(equipmentId, folder);
+    await load();
+    return count;
+  }
+
+  /// Saves the equipment and any new deadline items in one transaction.
+  Future<void> saveEquipmentWithItems(
+    Equipment e,
+    List<DeadlineItem> newItems,
+  ) async {
+    require(Permission.editData);
+    await repository.db.transaction(() async {
+      await repository.saveEquipment(e);
+      for (final i in newItems) {
+        await repository.saveItem(i.copy({'equipmentId': e.id}));
+      }
+    });
+    await load();
+  }
+
   Future<void> updateSettings(Json changes) async {
     require(Permission.manageSettings);
     await repository.saveSettings((await repository.settings()).copy(changes));
@@ -264,6 +308,9 @@ class AppController extends ChangeNotifier {
                 'expiredWithoutDate': item.expiredWithoutDate,
                 'requiresConfirmation': item.requiresConfirmation,
                 if (item.provider.isNotEmpty) 'provider': item.provider,
+                // Only the item sheet carries these; 0/'' means "not given".
+                if (item.cycleMonths > 0) 'cycleMonths': item.cycleMonths,
+                if (item.note.isNotEmpty) 'note': item.note,
               });
               currentItems.removeWhere((i) => i.id == item.id);
             }

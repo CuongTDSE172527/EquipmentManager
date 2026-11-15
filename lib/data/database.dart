@@ -383,14 +383,14 @@ class EquipmentRepository {
           variables: [Variable(id)],
         )
         .get();
-    if (rows.isEmpty) throw StateError('Không tìm thấy tệp đính kèm.');
+    if (rows.isEmpty) throw StateError('Không tìm thấy tệp hồ sơ.');
     return rows.single.read<Uint8List>('data');
   }
 
   Future<void> addAttachment(Attachment a, Uint8List data) async {
     validateAttachment(a);
     if (data.length != a.size || sha256.convert(data).toString() != a.sha256) {
-      throw const FormatException('Nội dung tệp đính kèm không khớp.');
+      throw const FormatException('Nội dung tệp hồ sơ không khớp.');
     }
     await db.transaction(() async {
       await db.customStatement(
@@ -409,7 +409,7 @@ class EquipmentRepository {
     if (current.isEmpty ||
         current.single.sha256 != a.sha256 ||
         current.single.equipmentId != a.equipmentId) {
-      throw const FormatException('Không sửa được tệp đính kèm này.');
+      throw const FormatException('Không sửa được tệp hồ sơ này.');
     }
     await db.transaction(() async {
       await db.customStatement(
@@ -426,6 +426,59 @@ class EquipmentRepository {
     await _track('attachment', id, deleted: true);
     await _audit('delete', 'attachment', id, '');
   });
+
+  bool _inFolder(Attachment a, String folder) =>
+      a.folder == folder || a.folder.startsWith('$folder/');
+
+  /// Moves every file of [from] (and its subfolders) under [to]; '' = top.
+  Future<void> renameAttachmentFolder(
+    String equipmentId,
+    String from,
+    String to,
+  ) async {
+    from = normalizeFolder(from);
+    to = normalizeFolder(to);
+    final problem = folderProblem(to);
+    if (from.isEmpty || problem != null) {
+      throw FormatException(problem ?? 'Chưa chọn thư mục.');
+    }
+    if (to == from) return;
+    if (to.startsWith('$from/')) {
+      throw const FormatException('Không chuyển thư mục vào chính nó.');
+    }
+    await db.transaction(() async {
+      for (final a in (await attachments()).where(
+        (a) => a.equipmentId == equipmentId && _inFolder(a, from),
+      )) {
+        final moved = a.copy({'folder': to + a.folder.substring(from.length)});
+        validateAttachment(moved);
+        await db.customStatement(
+          'UPDATE attachments SET payload=? WHERE id=?',
+          [jsonEncode(moved.toJson()), a.id],
+        );
+        await _track('attachment', a.id);
+      }
+      await _audit('update', 'attachment', equipmentId, 'Thư mục $from → $to');
+    });
+  }
+
+  /// Deletes every file in [folder] and its subfolders.
+  Future<int> deleteAttachmentFolder(String equipmentId, String folder) async {
+    folder = normalizeFolder(folder);
+    if (folder.isEmpty) throw const FormatException('Chưa chọn thư mục.');
+    var count = 0;
+    await db.transaction(() async {
+      for (final a in (await attachments()).where(
+        (a) => a.equipmentId == equipmentId && _inFolder(a, folder),
+      )) {
+        await db.customStatement('DELETE FROM attachments WHERE id=?', [a.id]);
+        await _track('attachment', a.id, deleted: true);
+        count++;
+      }
+      await _audit('delete', 'attachment', equipmentId, 'Thư mục $folder');
+    });
+    return count;
+  }
 
   /// Documents outlive the item or record they were linked to; they move back
   /// to the equipment instead of being deleted with it.
@@ -705,7 +758,7 @@ class EquipmentRepository {
           data.length != a.size ||
           sha256.convert(data).toString() != a.sha256) {
         throw FormatException(
-          'Sao lưu thiếu hoặc hỏng tệp đính kèm “${a.title}”.',
+          'Sao lưu thiếu hoặc hỏng tệp hồ sơ “${a.title}”.',
         );
       }
     }

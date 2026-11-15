@@ -5,7 +5,7 @@ EQUIPMENTMANAGER — HƯỚNG DẪN NHANH
    kiểm tra → tải → cài bản mới. Từ 0.3.0, bản Beta phát hành như bản chính thức.
    App tự sao lưu trước cài. Android có thể hỏi quyền cài từ EquipmentManager.
    Windows đóng cửa sổ, cập nhật rồi mở lại; hãy đóng các cửa sổ app khác.
-   Windows đang chạy 0.4.1 hoặc 0.4.2: cài tay bộ cài 0.4.3 một lần (cài đè,
+   Windows đang chạy 0.4.1 hoặc 0.4.2: cài tay bộ cài mới nhất một lần (cài đè,
    dữ liệu giữ nguyên) vì OTA của hai bản này báo "Windows chưa sẵn sàng".
 2. Mở Dữ liệu & báo cáo → Tải mẫu nhập Excel, điền và nhập lại.
 3. Kiểm tra bản xem trước; chọn tạo mới hoặc thiết bị cần ghép cho mỗi dòng.
@@ -34,6 +34,15 @@ EQUIPMENTMANAGER — HƯỚNG DẪN NHANH
    đặt lại. Tự khóa: Cài đặt → Hồ sơ của tôi.
    Sao lưu nay hỏi mật khẩu sao lưu (file .enc). Mất mật khẩu này là không mở
    được file. Xem docs/BAO-MAT.md.
+11. Từ 0.4.4 Beta:
+   - "Tệp đính kèm" đổi tên thành Hồ sơ thiết bị. Thêm tệp (chọn nhiều) hoặc
+     Thêm thư mục; mọi loại tệp trừ tệp chương trình, tối đa 100 MB mỗi tệp.
+     Bấm thư mục để mở; menu ⋮ của thư mục: thêm tệp, thư mục con, đổi tên, xóa.
+   - + Thêm thiết bị → Nhập thủ công (điền luôn các hạng mục theo dõi, mỗi
+     hạng mục một tên) hoặc Nhập dữ liệu từ file.
+   - Mẫu Excel có sheet Hạng mục theo dõi: mỗi dòng một hạng mục, ghi Biển số
+     (hoặc Tên phương tiện) để ghép đúng thiết bị.
+   - Theo dõi hạn hiện mỗi thiết bị một dòng; bấm vào để xem các hạng mục.
 
 ĐỎ: quá hạn. VÀNG: sắp đến hạn. XANH: còn hạn. XÁM: cần cập nhật.
 Ngày dạng MM/yyyy có hạn đến ngày cuối tháng đó.

@@ -46,6 +46,7 @@ App ghi lại đăng nhập, đăng xuất, đăng nhập sai, tạm khóa, mọ
 - Không có "cửa sau". Nếu mất cả mật khẩu lẫn mã khôi phục của Quản trị duy nhất, không ai đặt lại được. Nên tạo **ít nhất hai Quản trị** và cất mã khôi phục ở nơi an toàn.
 - Nhắc hạn nền vẫn chạy khi chưa đăng nhập, nhưng thông báo chỉ hiện số lượng hạng mục, không hiện chi tiết.
 - Excel xuất ra không mã hóa; hãy lưu ở nơi phù hợp.
+- Hồ sơ thiết bị (từ 0.4.4) nhận mọi loại tệp **trừ tệp chương trình/script** (`.exe`, `.bat`, `.cmd`, `.msi`, `.ps1`, `.vbs`, `.js`, `.lnk`, `.apk`…). Lý do: bấm mở một tệp trong hồ sơ sẽ chuyển cho Windows/Android mở bằng ứng dụng mặc định, và với các loại này "mở" nghĩa là chạy chương trình. Kiểm tra áp dụng cả khi thêm tệp, thêm thư mục và khôi phục sao lưu.
 
 ## Cập nhật thư viện
 

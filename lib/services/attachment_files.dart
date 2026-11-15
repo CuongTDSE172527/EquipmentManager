@@ -18,6 +18,7 @@ class AttachmentOpener {
         .trim();
     final stem = base.isEmpty ? 'tep-dinh-kem' : base;
     final short = stem.length > 80 ? stem.substring(0, 80).trim() : stem;
+    if (a.extension.isEmpty) return short;
     final ext = '.${a.extension}';
     return short.toLowerCase().endsWith(ext) ? short : '$short$ext';
   }
@@ -46,7 +47,7 @@ class AttachmentOpener {
     } else if (Platform.isWindows) {
       await Process.start('explorer.exe', [file.path]);
     } else {
-      throw const FileSystemException('Máy này chưa hỗ trợ mở tệp đính kèm.');
+      throw const FileSystemException('Máy này chưa hỗ trợ mở tệp hồ sơ.');
     }
   }
 }

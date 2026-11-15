@@ -65,7 +65,93 @@ class ImportRecord {
 class ImportPlan {
   final records = <ImportRecord>[];
   final issues = <ImportIssue>[];
+  final pendingItems = <PendingItem>[];
   int readRows = 0;
+
+  void add(ImportPlan other) {
+    records.addAll(other.records);
+    issues.addAll(other.issues);
+    pendingItems.addAll(other.pendingItems);
+    readRows += other.readRows;
+  }
+
+  /// Attaches item-sheet rows to equipment rows of this import (by plate,
+  /// else by name). Rows for equipment not in the import become item-only
+  /// records, which are matched to existing equipment like any other row.
+  void linkItems() {
+    final extra = <String, ImportRecord>{};
+    for (final p in pendingItems) {
+      final plate = plateKey(p.plate);
+      final name = normalized(p.name);
+      Set<String> platesOf(ImportRecord r) => [
+        r.equipment.controlPlate,
+        r.equipment.oldControlPlate,
+        r.equipment.roadPlate,
+      ].where((x) => x.isNotEmpty).map(plateKey).toSet();
+      var candidates = plate.isEmpty
+          ? <ImportRecord>[]
+          : records.where((r) => platesOf(r).contains(plate)).toList();
+      if (candidates.isEmpty && name.isNotEmpty) {
+        candidates = records
+            .where(
+              (r) =>
+                  normalized(r.equipment.name) == name &&
+                  (plate.isEmpty || platesOf(r).isEmpty),
+            )
+            .toList();
+      }
+      final preferred = candidates.where((r) => !r.metadataOnly).toList();
+      final target = preferred.length == 1
+          ? preferred.single
+          : preferred.isEmpty && candidates.length == 1
+          ? candidates.single
+          : null;
+      if (candidates.isNotEmpty && target == null) {
+        issues.add(
+          ImportIssue(
+            p.source,
+            p.row,
+            'Khớp ${candidates.length} thiết bị trong file (${candidates.map((r) => r.reference).join(', ')}); hãy ghi biển số để phân biệt.',
+            error: true,
+          ),
+        );
+        continue;
+      }
+      final record =
+          target ??
+          extra.putIfAbsent(plate.isNotEmpty ? 'p:$plate' : 'n:$name', () {
+            final created = ImportRecord(
+              source: p.source,
+              row: p.row,
+              equipment: Equipment(
+                name: p.name.isEmpty ? p.plate.trim() : p.name,
+                group: 'Chưa phân nhóm',
+              ).copy(plateFields(p.plate)),
+              items: [],
+              metadataOnly: false,
+              // Matched to existing equipment, it changes only the items.
+              suppliedFields: const {},
+            );
+            records.add(created);
+            return created;
+          });
+      final item = p.item.copy({'equipmentId': record.equipment.id});
+      if (record.items.any(
+        (i) => i.kind == item.kind && i.title == item.title,
+      )) {
+        issues.add(
+          ImportIssue(
+            p.source,
+            p.row,
+            '${item.title}: thiết bị đã có hạng mục cùng loại và tên trong lần nhập này; dòng sau ghi đè dòng trước.',
+          ),
+        );
+      }
+      record.items.add(item);
+    }
+    pendingItems.clear();
+  }
+
   bool get hasErrors => issues.any((i) => i.error);
   bool get ready =>
       !hasErrors && records.isNotEmpty && records.every((r) => r.approved);
@@ -513,4 +599,190 @@ DeadlineItem? parseImportedDeadline(
         ? InsuranceMode.dated
         : InsuranceMode.unknown,
   );
+}
+
+/// Columns of the "Hạng mục theo dõi" sheet: one deadline item per row, so
+/// one equipment can have any number of items with its own names.
+const itemSheetName = 'Hạng mục theo dõi';
+const itemColumns = [
+  'Tên phương tiện',
+  'Biển số',
+  'Loại hạng mục',
+  'Tên hạng mục',
+  'Hạn',
+  'Chu kỳ (tháng)',
+  'Đơn vị thực hiện',
+  'Ghi chú',
+];
+
+/// An item row waiting to be attached to an equipment row of the same import
+/// (by plate, else by name) or to an item-only record.
+class PendingItem {
+  const PendingItem(this.source, this.row, this.name, this.plate, this.item);
+  final String source, name, plate;
+  final int row;
+  final DeadlineItem item;
+}
+
+/// Index of the header row of an item sheet (also the app's own "Hạng mục"
+/// report), or -1. Equipment sheets have "Hạn đăng kiểm", never plain "Hạn".
+int itemHeaderRow(List<List<String>> rows) {
+  for (var n = 0; n < rows.length && n < 12; n++) {
+    final keys = rows[n].map(normalized).toSet();
+    if (keys.contains('han') &&
+        (keys.contains('tenhangmuc') || keys.contains('hangmuc'))) {
+      return n;
+    }
+  }
+  return -1;
+}
+
+ItemKind? itemKindFrom(String text) {
+  final key = normalized(text);
+  if (key.isEmpty) return null;
+  for (final kind in ItemKind.values) {
+    if (normalized(kind.label) == key || kind.name.toLowerCase() == key) {
+      return kind;
+    }
+  }
+  if (key.contains('baohiem')) return ItemKind.insurance;
+  if (key.contains('dangkiem') || key.contains('kiemdinh')) {
+    return ItemKind.inspection;
+  }
+  if (key.contains('baoduong')) return ItemKind.maintenance;
+  if (key.contains('suachua')) return ItemKind.repair;
+  if (key.contains('nienhan')) return ItemKind.lifespan;
+  if (key == 'khac') return ItemKind.other;
+  return null;
+}
+
+/// Same plate rules as the equipment sheets: CAH-xx-xxx is the control
+/// plate, other CAH plates are old control plates, the rest road plates.
+Json plateFields(String raw) {
+  final plate = ['khongcapbs', 'khongcapbienso'].contains(normalized(raw))
+      ? ''
+      : raw.trim().toUpperCase();
+  final canonical = RegExp(r'^CAH-\d{2}-\d{3}$').hasMatch(plate);
+  final internal = plate.startsWith('CAH');
+  return {
+    'controlPlate': canonical ? plate : '',
+    'oldControlPlate': internal && !canonical ? plate : '',
+    'roadPlate': internal ? '' : plate,
+  };
+}
+
+void parseItemRows(
+  ImportPlan plan,
+  String source,
+  List<List<String>> rows, {
+  required int header,
+  required DateTime today,
+}) {
+  final keys = rows[header].map(normalized).toList();
+  final hasEquipment = keys.any(
+    (k) => [
+      'tenphuongtien',
+      'tenthietbi',
+      'thietbi',
+      'ten',
+      'bienso',
+      'bienkiemsoat',
+    ].contains(k),
+  );
+  if (!hasEquipment) {
+    plan.issues.add(
+      ImportIssue(
+        source,
+        header + 1,
+        'Thiếu cột Tên phương tiện hoặc Biển số.',
+        error: true,
+      ),
+    );
+    return;
+  }
+  for (var n = header + 1; n < rows.length; n++) {
+    if (rows[n].every((c) => c.trim().isEmpty)) continue;
+    final row = <String, String>{
+      for (var c = 0; c < keys.length && c < rows[n].length; c++)
+        keys[c]: rows[n][c],
+    };
+    final name = _value(row, [
+      'Tên phương tiện',
+      'Tên thiết bị',
+      'Thiết bị',
+      'Tên',
+    ]);
+    final plate = _value(row, ['Biển số', 'Biển kiểm soát']);
+    final kindText = _value(row, ['Loại hạng mục', 'Loại']);
+    var title = _value(row, ['Tên hạng mục', 'Hạng mục']);
+    var raw = _value(row, ['Hạn']);
+    final cycleText = _value(row, ['Chu kỳ (tháng)', 'Chu kỳ']);
+    final provider = _value(row, ['Đơn vị thực hiện']);
+    final note = _value(row, ['Ghi chú']);
+    plan.readRows++;
+    void issue(String message, {bool error = false}) =>
+        plan.issues.add(ImportIssue(source, n + 1, message, error: error));
+    if (name.isEmpty && plate.isEmpty) {
+      issue('Thiếu tên phương tiện hoặc biển số.', error: true);
+      continue;
+    }
+    if (title.isEmpty && kindText.isEmpty) {
+      issue('Thiếu tên hạng mục.', error: true);
+      continue;
+    }
+    var kind = itemKindFrom(kindText);
+    if (kind == null && kindText.isNotEmpty) {
+      issue('Loại “$kindText” không rõ; xếp vào loại Khác.');
+    }
+    kind ??= itemKindFrom(title) ?? ItemKind.other;
+    if (title.isEmpty) title = kind.label;
+    var cycle = 0;
+    if (cycleText.isNotEmpty) {
+      final value = int.tryParse(cycleText.replaceAll(RegExp(r'\s'), ''));
+      if (value == null || value < 0 || value > 1200) {
+        issue('Chu kỳ không hợp lệ: $cycleText.', error: true);
+        continue;
+      }
+      cycle = value;
+    }
+    if (kind == ItemKind.lifespan && cycle != 0) {
+      issue('$title: niên hạn không có chu kỳ; bỏ chu kỳ $cycle tháng.');
+      cycle = 0;
+    }
+    var confirm = false;
+    if (normalized(raw).endsWith('canxacnhan')) {
+      confirm = true;
+      raw = raw.replaceFirst(RegExp(r'\(\s*Cần xác nhận\s*\)\s*$'), '').trim();
+    }
+    if (normalized(raw) == 'daxong') {
+      issue('$title: đã xong; không tạo hạng mục.');
+      continue;
+    }
+    try {
+      final parsed = parseImportedDeadline(raw, '', kind, provider: provider);
+      if (parsed == null) {
+        issue('$title: không áp dụng; không tạo hạng mục.');
+        continue;
+      }
+      final item = parsed.copy({
+        'title': title,
+        'cycleMonths': cycle,
+        'note': note,
+        'provider': provider,
+        'requiresConfirmation': confirm,
+      });
+      if (item.dueDate == null &&
+          !item.expiredWithoutDate &&
+          item.insuranceMode != InsuranceMode.centralized &&
+          item.insuranceMode != InsuranceMode.notApplicable) {
+        issue('$title: chưa có thông tin hạn; không coi là còn hạn.');
+      }
+      if (hasPastDeadline(item, today)) {
+        issue('$title: đã quá hạn tại ${displayDate(today)}.');
+      }
+      plan.pendingItems.add(PendingItem(source, n + 1, name, plate, item));
+    } on FormatException catch (e) {
+      issue('$title: ${e.message}', error: true);
+    }
+  }
 }

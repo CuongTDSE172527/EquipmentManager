@@ -91,7 +91,7 @@ BackupBundle decodeBackup(Uint8List bytes) {
       }
       // Checked before decompressing so a crafted archive cannot exhaust memory.
       if (entry.size > maxAttachmentBytes) {
-        throw const FormatException('Tệp đính kèm trong sao lưu quá lớn.');
+        throw const FormatException('Tệp hồ sơ trong sao lưu quá lớn.');
       }
       files[id] = Uint8List.fromList(entry.content as List<int>);
     }

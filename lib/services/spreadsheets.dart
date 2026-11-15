@@ -51,17 +51,20 @@ String _cellText(Data? cell) {
   return v?.toString() ?? '';
 }
 
+/// Reads one file. With [link] false the caller merges several files first
+/// and then calls [ImportPlan.linkItems] itself.
 ImportPlan readWorkbook(
   Uint8List bytes,
   String filename, {
   required DateTime today,
+  bool link = true,
 }) {
   if (bytes.length > 20 * 1024 * 1024) {
     throw const FormatException('File nhập tối đa 20 MB.');
   }
   final plan = ImportPlan();
   if (filename.toLowerCase().endsWith('.csv')) {
-    final text = utf8.decode(bytes).replaceFirst('\uFEFF', '');
+    final text = utf8.decode(bytes).replaceFirst('﻿', '');
     final first = text.split(RegExp(r'\r?\n')).first;
     final delimiter = first.split(';').length > first.split(',').length
         ? ';'
@@ -71,17 +74,7 @@ ImportPlan readWorkbook(
       fieldDelimiter: delimiter,
       skipEmptyLines: false,
     ).convert(text).map((r) => r.map((c) => c.toString()).toList()).toList();
-    final metadata = rows
-        .take(10)
-        .expand((r) => r)
-        .any((c) => normalized(c) == 'sokhung');
-    parseEquipmentRows(
-      plan,
-      filename,
-      rows,
-      metadataOnly: metadata,
-      today: today,
-    );
+    _parseSheet(plan, filename, rows, today, metadataRows: 10);
   } else if (filename.toLowerCase().endsWith('.xlsx')) {
     // Limit decompressed input as well as compressed size (zip bomb protection).
     final zip = ZipDecoder().decodeBytes(bytes, verify: true);
@@ -95,24 +88,35 @@ ImportPlan readWorkbook(
           .toList();
       if (rows.every((r) => r.every((c) => c.trim().isEmpty))) continue;
       if (normalized(entry.key) == 'huongdan') continue;
-      final metadata = rows
-          .take(12)
-          .expand((r) => r)
-          .any((c) => normalized(c) == 'sokhung');
-      parseEquipmentRows(
-        plan,
-        '$filename / ${entry.key}',
-        rows,
-        metadataOnly: metadata,
-        today: today,
-      );
+      _parseSheet(plan, '$filename / ${entry.key}', rows, today);
     }
   } else {
     throw const FormatException(
       'Chỉ nhận Excel .xlsx hoặc CSV UTF-8. Hãy chuyển .doc/.docx sang mẫu Excel trước.',
     );
   }
+  if (link) plan.linkItems();
   return plan;
+}
+
+/// Item sheets (one deadline item per row) or equipment sheets.
+void _parseSheet(
+  ImportPlan plan,
+  String source,
+  List<List<String>> rows,
+  DateTime today, {
+  int metadataRows = 12,
+}) {
+  final itemHeader = itemHeaderRow(rows);
+  if (itemHeader >= 0) {
+    parseItemRows(plan, source, rows, header: itemHeader, today: today);
+    return;
+  }
+  final metadata = rows
+      .take(metadataRows)
+      .expand((r) => r)
+      .any((c) => normalized(c) == 'sokhung');
+  parseEquipmentRows(plan, source, rows, metadataOnly: metadata, today: today);
 }
 
 class SpreadsheetService {
@@ -323,9 +327,15 @@ class SpreadsheetService {
     final appendix = book['Phụ lục'];
     _row(appendix, appendixColumns);
     _style(appendix, 0, 9);
+    final itemSheet = book[itemSheetName];
+    _row(itemSheet, itemColumns);
+    _style(itemSheet, 0, itemColumns.length);
     final guide = book['Hướng dẫn'];
     for (final text in [
-      'Điền bảng Theo dõi, bảng Phụ lục hoặc cả hai. Giữ nguyên tên cột.',
+      'Điền bảng Theo dõi, Phụ lục, Hạng mục theo dõi hoặc kết hợp. Giữ nguyên tên cột.',
+      'Hạng mục theo dõi: mỗi dòng là một hạng mục; một thiết bị có thể có nhiều dòng với tên hạng mục khác nhau (ví dụ Kiểm định cẩu, Kiểm định bình áp lực).',
+      'Hạng mục theo dõi ghép với thiết bị trong cùng file theo Biển số, nếu không có biển số thì theo Tên phương tiện. Thiết bị chưa có trong file được đối chiếu với dữ liệu trong ứng dụng.',
+      'Loại hạng mục: Bảo hiểm; Đăng kiểm/Kiểm định; Bảo dưỡng; Sửa chữa; Niên hạn sử dụng; Khác. Chu kỳ (tháng): 0 hoặc để trống nếu làm một lần.',
       'Ngày: dd/MM/yyyy hoặc MM/yyyy. Nhập ngày dưới dạng văn bản để giữ chính xác tháng.',
       'Bảo hiểm: ngày hết hạn; ACV mua; Hết; Không áp dụng; hoặc để trống nếu chưa có thông tin.',
       'Hạn đăng kiểm: ngày; Hết ĐK; Không áp dụng; hoặc để trống nếu chưa có thông tin.',

@@ -2,6 +2,14 @@
 
 Ứng dụng quản lý trang thiết bị ngoại tuyến cho Windows 10/11 x64 và Android 8 trở lên. Toàn bộ giao diện bằng tiếng Việt, không cần máy chủ. Từ 0.4.0, người dùng đăng nhập bằng tài khoản cục bộ trên từng máy. Mỗi máy có database SQLite riêng; chuyển dữ liệu bằng sao lưu/khôi phục.
 
+## Mới trong 0.4.4 Beta — hồ sơ thiết bị, nhiều hạng mục
+
+- **Hồ sơ thiết bị** (trước là Tệp đính kèm): chọn nhiều tệp một lần, thêm cả thư mục (Windows giữ nguyên cấu trúc thư mục con), xem dạng cây, đổi tên/chuyển/xóa thư mục. Nhận mọi loại tệp trừ tệp chương trình/script, tối đa 100 MB mỗi tệp.
+- **Nhiều hạng mục tên riêng cho một thiết bị**: mẫu nhập có sheet **Hạng mục theo dõi** (mỗi dòng một hạng mục); form Thêm/Sửa thiết bị nhập luôn các hạng mục; trang **Theo dõi hạn** gom theo thiết bị, bấm để xem tất cả hạng mục.
+- Nút **+ Thêm thiết bị** cho chọn **Nhập thủ công** hoặc **Nhập dữ liệu từ file**.
+
+Chi tiết trong [CHANGELOG](CHANGELOG.md).
+
 ## Mới trong 0.4.3 Beta — sửa cập nhật OTA trên Windows
 
 Cập nhật trong app trên Windows không còn dừng ở thông báo "Windows chưa sẵn sàng cập nhật". **Máy Windows đang chạy 0.4.1 hoặc 0.4.2 cần cài tay 0.4.3 một lần** (tải `EquipmentManager-0.4.3-windows-setup.exe` trong Releases, chạy và cài đè; dữ liệu giữ nguyên). Từ 0.4.3, OTA trên Windows hoạt động lại. Android không bị ảnh hưởng. Chi tiết trong [CHANGELOG](CHANGELOG.md).

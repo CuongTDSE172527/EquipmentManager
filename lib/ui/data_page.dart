@@ -116,7 +116,7 @@ class _DataPageState extends State<DataPage> {
       const SizedBox(height: 12),
       _action(
         'Tải mẫu nhập Excel',
-        'Hai bảng Theo dõi và Phụ lục, kèm hướng dẫn điền. Không chứa dữ liệu thật.',
+        'Ba bảng Theo dõi, Phụ lục và Hạng mục theo dõi (nhiều hạng mục cho một thiết bị), kèm hướng dẫn điền. Không chứa dữ liệu thật.',
         Icons.download_outlined,
         () => _run(() async {
           await saveBytes('EquipmentManager-mau-nhap.xlsx', sheets.template());
@@ -132,7 +132,7 @@ class _DataPageState extends State<DataPage> {
       if (c.can(Permission.exportBackup))
         _action(
           'Sao lưu toàn bộ dữ liệu',
-          'Thiết bị, hạng mục, lịch sử, tệp đính kèm, danh mục và cài đặt trong một file. Mặc định mã hóa bằng mật khẩu sao lưu.',
+          'Thiết bị, hạng mục, lịch sử, hồ sơ thiết bị, danh mục và cài đặt trong một file. Mặc định mã hóa bằng mật khẩu sao lưu.',
           Icons.backup_outlined,
           () => _run(_backup),
         ),
@@ -537,7 +537,7 @@ class _DataPageState extends State<DataPage> {
     if (!await confirmAction(
       context,
       'Khôi phục và thay dữ liệu hiện tại?',
-      'File chứa ${backup.equipmentCount} thiết bị, ${backup.itemCount} hạng mục và ${backup.attachmentCount} tệp đính kèm. Dữ liệu hiện tại sẽ được lưu một bản tự động rồi thay bằng bản sao lưu.',
+      'File chứa ${backup.equipmentCount} thiết bị, ${backup.itemCount} hạng mục và ${backup.attachmentCount} tệp hồ sơ. Dữ liệu hiện tại sẽ được lưu một bản tự động rồi thay bằng bản sao lưu.',
       action: 'Khôi phục',
     )) {
       return;
@@ -554,33 +554,42 @@ class _DataPageState extends State<DataPage> {
   }
 
   Future<void> _import() async {
-    final selected = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['xlsx', 'csv'],
-    );
-    if (selected.isEmpty) return;
-    final plan = ImportPlan();
-    for (final file in selected) {
-      final bytes = await readPicked(
-        file,
-        20 * 1024 * 1024,
-        'File nhập tối đa 20 MB.',
-      );
-      final part = readWorkbook(bytes, file.name, today: c.clock());
-      plan.records.addAll(part.records);
-      plan.issues.addAll(part.issues);
-      plan.readRows += part.readRows;
-    }
-    plan.suggestMatches(c.equipment);
-    if (!mounted) return;
-    final decision = await showInstantDialog<bool>(
-      context: context,
-      builder: (context) => _ImportPreview(plan: plan, existing: c.equipment),
-    );
-    if (decision == null) return;
-    await c.importPlan(plan, confirmPast: decision);
-    widget.onError('Đã nhập ${plan.records.length} dòng đã được xác nhận.');
+    final message = await importFromFiles(context, c);
+    if (message != null) widget.onError(message);
   }
+}
+
+/// Pick Excel/CSV files, preview and confirm, then import. Shared by
+/// "Dữ liệu & báo cáo" and the "Thêm thiết bị" button. Returns the message
+/// to show, or null when the user cancelled.
+Future<String?> importFromFiles(BuildContext context, AppController c) async {
+  final selected = await FilePicker.pickFiles(
+    dialogTitle: 'Chọn file Excel / CSV',
+    type: FileType.custom,
+    allowedExtensions: ['xlsx', 'csv'],
+  );
+  if (selected.isEmpty) return null;
+  final plan = ImportPlan();
+  for (final file in selected) {
+    final bytes = await readPicked(
+      file,
+      20 * 1024 * 1024,
+      'File nhập tối đa 20 MB.',
+    );
+    plan.add(readWorkbook(bytes, file.name, today: c.clock(), link: false));
+  }
+  // After every file is read, so items can name equipment of another file.
+  plan.linkItems();
+  plan.suggestMatches(c.equipment);
+  if (!context.mounted) return null;
+  final decision = await showInstantDialog<bool>(
+    context: context,
+    builder: (context) => _ImportPreview(plan: plan, existing: c.equipment),
+  );
+  if (decision == null) return null;
+  await c.importPlan(plan, confirmPast: decision);
+  final items = plan.records.fold(0, (sum, r) => sum + r.items.length);
+  return 'Đã nhập ${plan.records.length} dòng thiết bị, $items hạng mục đã được xác nhận.';
 }
 
 class _ImportPreview extends StatefulWidget {
@@ -701,6 +710,14 @@ class _ImportPreviewState extends State<_ImportPreview> {
               style: Theme.of(context).textTheme.titleSmall,
             ),
             Text('${r.source} — dòng ${r.row}'),
+            if (r.suppliedFields.isEmpty)
+              const Text(
+                'Chỉ thêm/cập nhật hạng mục; ghép vào thiết bị có sẵn thì không đổi thông tin thiết bị.',
+              ),
+            if (r.items.isNotEmpty)
+              Text(
+                '${r.items.length} hạng mục: ${r.items.map((i) => i.title).join('; ')}',
+              ),
             if (r.suggestedIds.isNotEmpty)
               Text(
                 'Đề xuất: ${r.suggestedIds.map((id) => choices[id]).whereType<Equipment>().map((e) => '${e.name} (${e.displayPlate})').join('; ')}',

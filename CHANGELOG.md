@@ -1,5 +1,19 @@
 # Thay đổi
 
+## 0.4.4 Beta
+
+Bản tính năng. Cập nhật bằng OTA từ 0.4.3 (Windows 0.4.1/0.4.2 vẫn cần cài tay 0.4.3 hoặc 0.4.4 một lần). Không đổi cấu trúc database; sao lưu cũ vẫn khôi phục được.
+
+- **Tệp đính kèm đổi thành "Hồ sơ thiết bị"**, có thư mục:
+  - **Thêm tệp** chọn được nhiều tệp một lần. **Thêm thư mục**: trên Windows chọn một thư mục, app lưu mọi tệp bên trong và giữ nguyên cấu trúc thư mục con (tối đa 1.000 tệp mỗi lần). Trên Android đặt tên thư mục rồi chọn các tệp đưa vào.
+  - Thư mục hiển thị dạng cây, bấm để mở/đóng. Menu thư mục: thêm tệp, thêm thư mục con, đổi tên/chuyển, xóa (xóa cả thư mục con, có hỏi lại). **Sửa thông tin** của tệp cho đổi thư mục.
+  - **Mở giới hạn tệp**: nhận mọi loại tệp (bản vẽ, nén, video, PowerPoint, văn bản…), giới hạn tăng từ 25 MB lên **100 MB mỗi tệp**. Vẫn chặn tệp chương trình/script (`.exe`, `.bat`, `.cmd`, `.msi`, `.ps1`, `.vbs`, `.js`, `.lnk`, `.apk`…) vì "mở" chúng là chạy chương trình. Chưa bỏ hẳn giới hạn vì sao lưu được dựng trong bộ nhớ, tối đa 1 GB.
+- **Nhiều hạng mục tên riêng cho một thiết bị**:
+  - **Mẫu nhập Excel có thêm sheet "Hạng mục theo dõi"**: mỗi dòng một hạng mục (Tên phương tiện, Biển số, Loại hạng mục, Tên hạng mục, Hạn, Chu kỳ, Đơn vị thực hiện, Ghi chú). Ghép với thiết bị trong cùng lần nhập theo biển số, không có biển số thì theo tên. Thiết bị chưa có trong file được đối chiếu với dữ liệu trong app như các dòng khác; ghép vào thiết bị có sẵn thì chỉ thêm/cập nhật hạng mục, không đổi thông tin thiết bị. Trùng tên giữa nhiều thiết bị thì báo lỗi, không đoán. Sheet "Hạng mục" của báo cáo hạng mục xuất từ app cũng nhập lại được.
+  - **Form Thêm/Sửa thiết bị** có phần "Hạng mục theo dõi": thêm nhiều hạng mục (loại, tên tự đặt, hạn, chu kỳ, chế độ bảo hiểm) và lưu cùng thiết bị trong một giao dịch.
+  - **Trang Theo dõi hạn gom theo thiết bị**: mỗi thiết bị một dòng, hiện trạng thái nặng nhất, số hạng mục theo trạng thái và số mốc cần xác nhận. Bấm để mở rộng và xem mọi hạng mục, kèm nút Gia hạn / Hoàn thành, Xác nhận dữ liệu, Sửa, Xóa, Thêm hạng mục. Bộ lọc vẫn lọc theo hạng mục và báo số hạng mục bị ẩn. Thêm nút **Sắp xếp**: mức cảnh báo, hạn gần nhất, tên, biển số. "Gom theo đơn vị" vẫn dùng được.
+- **Nút "+ Thêm thiết bị"** hỏi **Nhập thủ công** hoặc **Nhập dữ liệu từ file** (Excel/CSV, cùng bước xem trước và xác nhận như Dữ liệu & báo cáo). Nhập nhiều file một lần thì hạng mục ở file này ghép được với thiết bị ở file khác.
+
 ## 0.4.3 Beta
 
 Bản sửa lỗi, không đổi dữ liệu hay cách dùng. Trên Windows cần cài tay một lần (xem bên dưới); Android cập nhật bằng OTA như thường.

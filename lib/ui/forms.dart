@@ -89,8 +89,15 @@ Future<void> equipmentForm(
   var self = e.selfPropelled;
   String? error;
   final form = GlobalKey<FormState>();
-  final saved = await showFormDialog<Equipment>(
-    controllers: fields.values,
+  final drafts = <ItemDraft>[], everyDraft = <ItemDraft>[];
+  final existing = c.items
+      .where((i) => equipment != null && i.equipmentId == equipment.id)
+      .toList();
+  final saved = await showFormDialog<(Equipment, List<DeadlineItem>)>(
+    // Read when the dialog closes, so drafts added later are disposed too.
+    controllers: fields.values.followedBy(
+      everyDraft.expand((d) => d.controllers),
+    ),
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
@@ -192,6 +199,20 @@ Future<void> equipmentForm(
                         value: self,
                         onChanged: (v) => setState(() => self = v!),
                       ),
+                      SizedBox(
+                        width: constraints.maxWidth,
+                        child: ItemDraftsEditor(
+                          drafts: drafts,
+                          existing: existing,
+                          onAdd: (kind) => setState(() {
+                            final d = ItemDraft(kind);
+                            drafts.add(d);
+                            everyDraft.add(d);
+                          }),
+                          onRemove: (d) => setState(() => drafts.remove(d)),
+                          onChanged: () => setState(() {}),
+                        ),
+                      ),
                       if (error != null)
                         Text(
                           error!,
@@ -215,18 +236,19 @@ Future<void> equipmentForm(
             onPressed: () {
               if (!form.currentState!.validate()) return;
               try {
-                Navigator.pop(
-                  context,
-                  e.copy({
-                    for (final key in keys.keys)
-                      key: key == 'yearMade'
-                          ? int.tryParse(fields[key]!.text.trim())
-                          : fields[key]!.text.trim(),
-                    'group': group,
-                    'managementStatus': management.name,
-                    'selfPropelled': self,
-                  }),
-                );
+                final result = e.copy({
+                  for (final key in keys.keys)
+                    key: key == 'yearMade'
+                        ? int.tryParse(fields[key]!.text.trim())
+                        : fields[key]!.text.trim(),
+                  'group': group,
+                  'managementStatus': management.name,
+                  'selfPropelled': self,
+                });
+                Navigator.pop(context, (
+                  result,
+                  [for (final d in drafts) d.build(result.id)],
+                ));
               } catch (ex) {
                 setState(() => error = ex.toString());
               }
@@ -237,7 +259,7 @@ Future<void> equipmentForm(
       ),
     ),
   );
-  if (saved != null) await c.saveEquipment(saved);
+  if (saved != null) await c.saveEquipmentWithItems(saved.$1, saved.$2);
 }
 
 Future<void> itemForm(
@@ -661,5 +683,238 @@ Future<void> completionForm(
   );
   if (result != null) {
     await c.recordCompletion(result.item, result.history);
+  }
+}
+
+/// A new deadline item typed into the equipment form.
+class ItemDraft {
+  ItemDraft(this.kind)
+    : title = TextEditingController(text: kind.label),
+      due = TextEditingController(),
+      cycle = TextEditingController(text: '0');
+  ItemKind kind;
+  InsuranceMode mode = InsuranceMode.unknown;
+  final TextEditingController title, due, cycle;
+  Iterable<TextEditingController> get controllers => [title, due, cycle];
+
+  DeadlineItem build(String equipmentId) {
+    final parsed = due.text.trim().isEmpty
+        ? null
+        : parseVietnameseDate(due.text);
+    return DeadlineItem(
+      equipmentId: equipmentId,
+      kind: kind,
+      title: title.text.trim(),
+      dueDate: parsed?.date,
+      precision: parsed?.precision ?? DatePrecision.day,
+      cycleMonths: kind == ItemKind.lifespan
+          ? 0
+          : int.tryParse(cycle.text.trim()) ?? 0,
+      insuranceMode: kind != ItemKind.insurance
+          ? InsuranceMode.unknown
+          : parsed != null && mode == InsuranceMode.unknown
+          ? InsuranceMode.dated
+          : mode,
+    );
+  }
+}
+
+/// Rows for new items inside the equipment form; validated with the form.
+class ItemDraftsEditor extends StatelessWidget {
+  const ItemDraftsEditor({
+    super.key,
+    required this.drafts,
+    required this.onAdd,
+    required this.onRemove,
+    required this.onChanged,
+    this.existing = const [],
+  });
+  final List<ItemDraft> drafts;
+  final List<DeadlineItem> existing;
+  final ValueChanged<ItemKind> onAdd;
+  final ValueChanged<ItemDraft> onRemove;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth > 580;
+        double w(double share) => wide
+            ? (constraints.maxWidth - 92) * share
+            : constraints.maxWidth - 64;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Divider(height: 32),
+            Text('Hạng mục theo dõi', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              existing.isEmpty
+                  ? 'Thêm các hạng mục cần theo dõi hạn; mỗi hạng mục có tên riêng. Có thể thêm sau trong chi tiết thiết bị.'
+                  : 'Đang có ${existing.length}: ${existing.map((i) => i.title).join('; ')}. Hạng mục cũ sửa trong Theo dõi hạn hoặc chi tiết thiết bị; dưới đây chỉ thêm hạng mục mới.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            for (final d in drafts)
+              Card(
+                key: ObjectKey(d),
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            SizedBox(
+                              width: w(.28),
+                              child: DropdownButtonFormField<ItemKind>(
+                                initialValue: d.kind,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Loại',
+                                ),
+                                items: [
+                                  for (final k in ItemKind.values)
+                                    DropdownMenuItem(
+                                      value: k,
+                                      child: Text(
+                                        k.label,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                ],
+                                onChanged: (v) {
+                                  if (d.title.text.trim().isEmpty ||
+                                      d.title.text == d.kind.label) {
+                                    d.title.text = v!.label;
+                                  }
+                                  d.kind = v!;
+                                  if (v == ItemKind.lifespan) {
+                                    d.cycle.text = '0';
+                                  }
+                                  onChanged();
+                                },
+                              ),
+                            ),
+                            SizedBox(
+                              width: w(.42),
+                              child: TextFormField(
+                                controller: d.title,
+                                decoration: const InputDecoration(
+                                  labelText: 'Tên hạng mục *',
+                                ),
+                                validator: (v) => v!.trim().isEmpty
+                                    ? 'Nhập tên hạng mục.'
+                                    : null,
+                              ),
+                            ),
+                            SizedBox(
+                              width: w(.3),
+                              child: TextFormField(
+                                controller: d.due,
+                                decoration: const InputDecoration(
+                                  labelText: 'Hạn',
+                                  hintText: 'dd/MM/yyyy hoặc MM/yyyy',
+                                ),
+                                validator: (v) {
+                                  if (v!.trim().isEmpty) {
+                                    return d.kind == ItemKind.insurance &&
+                                            d.mode == InsuranceMode.dated
+                                        ? 'Nhập ngày hết hạn.'
+                                        : null;
+                                  }
+                                  try {
+                                    parseVietnameseDate(v);
+                                    return null;
+                                  } on FormatException catch (e) {
+                                    return e.message;
+                                  }
+                                },
+                              ),
+                            ),
+                            if (d.kind != ItemKind.lifespan)
+                              SizedBox(
+                                width: wide ? 150 : w(1),
+                                child: TextFormField(
+                                  controller: d.cycle,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Chu kỳ (tháng)',
+                                  ),
+                                  validator: (v) {
+                                    final n = int.tryParse(v!.trim());
+                                    return n == null || n < 0
+                                        ? 'Chu kỳ không hợp lệ.'
+                                        : null;
+                                  },
+                                ),
+                              ),
+                            if (d.kind == ItemKind.insurance)
+                              SizedBox(
+                                width: wide ? 240 : w(1),
+                                child: DropdownButtonFormField<InsuranceMode>(
+                                  initialValue: d.mode,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Chế độ bảo hiểm',
+                                  ),
+                                  items: [
+                                    for (final m in InsuranceMode.values)
+                                      DropdownMenuItem(
+                                        value: m,
+                                        child: Text(
+                                          m.label,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                  ],
+                                  onChanged: (v) {
+                                    d.mode = v!;
+                                    onChanged();
+                                  },
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Bỏ hạng mục này',
+                        onPressed: () => onRemove(d),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final k in [
+                  ItemKind.inspection,
+                  ItemKind.insurance,
+                  ItemKind.maintenance,
+                  ItemKind.lifespan,
+                  ItemKind.other,
+                ])
+                  ActionChip(
+                    avatar: const Icon(Icons.add, size: 18),
+                    label: Text(
+                      k == ItemKind.other ? 'Hạng mục khác' : k.label,
+                    ),
+                    onPressed: () => onAdd(k),
+                  ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
   }
 }

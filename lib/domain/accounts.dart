@@ -191,7 +191,7 @@ const auditEntityLabels = {
   'item': 'Hạng mục',
   'history': 'Lịch sử hoàn thành',
   'service': 'Sổ bảo trì',
-  'attachment': 'Tệp đính kèm',
+  'attachment': 'Hồ sơ thiết bị',
   'catalog': 'Danh mục',
   'account': 'Tài khoản',
   'data': 'Dữ liệu',

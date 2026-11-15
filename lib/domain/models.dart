@@ -386,7 +386,8 @@ class AppSettings {
   );
 }
 
-/// File types accepted as attachments, mapped to the MIME type used to open them.
+/// MIME types used to open common record files with the right app. Any other
+/// type is still accepted and opened as `application/octet-stream`.
 const attachmentTypes = {
   'pdf': 'application/pdf',
   'jpg': 'image/jpeg',
@@ -394,21 +395,113 @@ const attachmentTypes = {
   'png': 'image/png',
   'webp': 'image/webp',
   'heic': 'image/heic',
+  'gif': 'image/gif',
+  'bmp': 'image/bmp',
+  'tif': 'image/tiff',
+  'tiff': 'image/tiff',
   'doc': 'application/msword',
   'docx':
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'xls': 'application/vnd.ms-excel',
   'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'ppt': 'application/vnd.ms-powerpoint',
+  'pptx':
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'odt': 'application/vnd.oasis.opendocument.text',
+  'ods': 'application/vnd.oasis.opendocument.spreadsheet',
+  'rtf': 'application/rtf',
+  'txt': 'text/plain',
+  'csv': 'text/csv',
+  'xml': 'text/xml',
+  'json': 'application/json',
+  'zip': 'application/zip',
+  'rar': 'application/vnd.rar',
+  '7z': 'application/x-7z-compressed',
+  'mp4': 'video/mp4',
+  'mov': 'video/quicktime',
+  'mp3': 'audio/mpeg',
+  'm4a': 'audio/mp4',
+  'dwg': 'image/vnd.dwg',
+  'eml': 'message/rfc822',
 };
-const maxAttachmentBytes = 25 * 1024 * 1024;
+
+/// Programs and scripts run when "opened", so they are never kept as records.
+const blockedAttachmentTypes = {
+  'exe',
+  'com',
+  'bat',
+  'cmd',
+  'msi',
+  'msp',
+  'msix',
+  'appx',
+  'scr',
+  'pif',
+  'cpl',
+  'dll',
+  'sys',
+  'ps1',
+  'psm1',
+  'vbs',
+  'vbe',
+  'js',
+  'jse',
+  'wsf',
+  'wsh',
+  'hta',
+  'lnk',
+  'url',
+  'reg',
+  'inf',
+  'scf',
+  'jar',
+  'apk',
+  'msc',
+  'application',
+  'gadget',
+  'sh',
+};
+
+/// Per file. Backups are built in memory (up to [maxBackupBytes] in all), so
+/// a hard limit stays to keep backup and restore working on phones.
+const maxAttachmentBytes = 100 * 1024 * 1024;
+const maxAttachmentLabel = '100 MB';
 
 String fileExtension(String name) {
   final dot = name.lastIndexOf('.');
   return dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
 }
 
-/// A document kept with a piece of equipment, optionally linked to one of its
-/// deadline items or service records. The bytes live in SQLite next to it.
+/// `Hồ sơ\Đăng kiểm/ 2026 ` → `Hồ sơ/Đăng kiểm/2026`.
+String normalizeFolder(String folder) => folder
+    .replaceAll(r'\', '/')
+    .split('/')
+    .map((s) => s.trim())
+    .where((s) => s.isNotEmpty)
+    .join('/');
+
+/// Null when [folder] (already normalized, '' = top level) is acceptable.
+String? folderProblem(String folder) {
+  if (folder.isEmpty) return null;
+  final parts = folder.split('/');
+  if (folder.length > 255 || parts.length > 8) {
+    return 'Thư mục lồng quá sâu hoặc tên quá dài.';
+  }
+  for (final s in parts) {
+    if (s.isEmpty ||
+        s == '.' ||
+        s == '..' ||
+        s.length > 100 ||
+        s.contains(RegExp(r'[<>:"|?*\x00-\x1F\\]'))) {
+      return 'Tên thư mục không hợp lệ: “$s”.';
+    }
+  }
+  return null;
+}
+
+/// A record document (hồ sơ) kept with a piece of equipment, optionally in a
+/// folder and linked to one of its deadline items or service records. The
+/// bytes live in SQLite next to it.
 class Attachment {
   Attachment({
     String? id,
@@ -419,18 +512,22 @@ class Attachment {
     String? title,
     this.linkId,
     this.note = '',
+    this.folder = '',
     DateTime? createdAt,
   }) : id = id ?? newId(),
        title = (title == null || title.trim().isEmpty) ? fileName : title,
        createdAt = createdAt ?? DateTime.now();
   final String id, equipmentId, fileName, sha256, title, note;
+
+  /// Folder path inside the equipment's records, `/`-separated; '' = top.
+  final String folder;
   final String? linkId;
   final int size;
   final DateTime createdAt;
   String get extension => fileExtension(fileName);
   String get mimeType =>
       attachmentTypes[extension] ?? 'application/octet-stream';
-  bool get isImage => mimeType.startsWith('image/');
+  bool get isImage => mimeType.startsWith('image/') && extension != 'dwg';
   Attachment copy(Json changes) =>
       Attachment.fromJson({...toJson(), ...changes});
   Json toJson() => {
@@ -442,6 +539,7 @@ class Attachment {
     'title': title,
     'linkId': linkId,
     'note': note,
+    'folder': folder,
     'createdAt': createdAt.toIso8601String(),
   };
   factory Attachment.fromJson(Json j) => Attachment(
@@ -453,6 +551,7 @@ class Attachment {
     title: j['title'] as String?,
     linkId: j['linkId'] as String?,
     note: j['note'] as String? ?? '',
+    folder: j['folder'] as String? ?? '',
     createdAt: readDate(j['createdAt']),
   );
 }
@@ -460,12 +559,14 @@ class Attachment {
 void validateAttachment(Attachment a) {
   if (a.equipmentId.isEmpty ||
       a.fileName.trim().isEmpty ||
-      a.fileName.contains(RegExp(r'[\/]')) ||
-      !attachmentTypes.containsKey(a.extension) ||
+      a.fileName.contains(RegExp(r'[\\/]')) ||
+      blockedAttachmentTypes.contains(a.extension) ||
       a.size <= 0 ||
       a.size > maxAttachmentBytes ||
       !RegExp(r'^[0-9a-f]{64}$').hasMatch(a.sha256) ||
-      a.title.trim().isEmpty) {
-    throw const FormatException('Tệp đính kèm không hợp lệ.');
+      a.title.trim().isEmpty ||
+      a.folder != normalizeFolder(a.folder) ||
+      folderProblem(a.folder) != null) {
+    throw const FormatException('Tệp hồ sơ không hợp lệ.');
   }
 }

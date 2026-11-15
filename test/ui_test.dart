@@ -62,17 +62,48 @@ void main() {
             : find.byTooltip('Thêm thiết bị').first,
       );
       await tester.pumpAndSettle();
+      expect(find.text('Nhập dữ liệu từ file'), findsOneWidget);
+      await tester.tap(find.text('Nhập thủ công'));
+      await tester.pumpAndSettle();
       expect(find.text('Lưu thiết bị'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.enterText(
         find.byType(TextFormField).first,
         'Thiết bị nhập qua giao diện',
       );
+      // Two new items with their own names, typed into the same dialog.
+      for (final title in ['Kiểm định cẩu', 'Kiểm định bình áp lực']) {
+        // A focused field scrolls its caret back into view; drop focus first.
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+        final chip = find.widgetWithText(ActionChip, 'Hạng mục khác');
+        await tester.ensureVisible(chip);
+        await tester.pumpAndSettle();
+        await tester.tap(chip);
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Tên hạng mục *').last,
+          title,
+        );
+      }
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Hạn').last,
+        '06/2027',
+      );
+      expect(tester.takeException(), isNull);
       await tester.tap(find.text('Lưu thiết bị'));
       await tester.pumpAndSettle();
+      final created = (await repo.equipment()).single;
+      expect(created.name, 'Thiết bị nhập qua giao diện');
+      final createdItems = await repo.items();
+      expect(createdItems.map((i) => i.title).toSet(), {
+        'Kiểm định cẩu',
+        'Kiểm định bình áp lực',
+      });
+      expect(createdItems.every((i) => i.equipmentId == created.id), isTrue);
       expect(
-        (await repo.equipment()).single.name,
-        'Thiết bị nhập qua giao diện',
+        createdItems.singleWhere((i) => i.dueDate != null).title,
+        'Kiểm định bình áp lực',
       );
       expect(tester.takeException(), isNull);
       await repo.deleteEquipment((await repo.equipment()).single.id);
@@ -94,7 +125,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Theo dõi hạn').last);
       await tester.pumpAndSettle();
-      expect(find.textContaining('200 hạng mục'), findsOneWidget);
+      expect(find.textContaining('50 thiết bị • 200 hạng mục'), findsOneWidget);
+      // One entry per equipment; its items show only when expanded.
+      expect(find.text('Bảo dưỡng 3'), findsNothing);
+      await tester.tap(find.text('Thiết bị thử 0'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bảo dưỡng 3'), findsOneWidget);
+      expect(tester.takeException(), isNull);
       expect(tester.takeException(), isNull);
       await tester.enterText(
         find.byType(TextField).first,

@@ -413,7 +413,53 @@ class _AppState extends State<EquipmentManagerApp> with WidgetsBindingObserver {
   void _new() {
     if (!_canEdit || page > 2) return;
     final ctx = navigator.currentContext!;
-    unawaited(_run(() => page == 1 ? itemForm(ctx, c) : equipmentForm(ctx, c)));
+    unawaited(_run(() => page == 1 ? itemForm(ctx, c) : _newEquipment(ctx)));
+  }
+
+  /// "Thêm thiết bị": type it in, or import Excel/CSV through the same
+  /// preview and confirmation as Dữ liệu & báo cáo.
+  Future<void> _newEquipment(BuildContext context) async {
+    final choice = await showInstantDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Thêm thiết bị'),
+        children: [
+          ListTile(
+            leading: const Icon(Icons.edit_note),
+            title: const Text('Nhập thủ công'),
+            subtitle: const Text(
+              'Điền thông tin thiết bị và các hạng mục theo dõi.',
+            ),
+            onTap: () => Navigator.pop(context, 'manual'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.upload_file_outlined),
+            title: const Text('Nhập dữ liệu từ file'),
+            subtitle: const Text(
+              'Excel (.xlsx) hoặc CSV theo mẫu nhập; xem trước và xác nhận từng dòng.',
+            ),
+            onTap: () => Navigator.pop(context, 'file'),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Hủy'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted) return;
+    if (choice == 'manual') {
+      await equipmentForm(context, c);
+    } else if (choice == 'file') {
+      final message = await importFromFiles(context, c);
+      if (message != null) _message(message);
+    }
   }
 
   @override
@@ -1086,14 +1132,59 @@ class _AppState extends State<EquipmentManagerApp> with WidgetsBindingObserver {
               DeadlineStatus.upcoming,
             ].contains(r.status));
   }).toList();
-  Widget _deadlines(BuildContext context, bool wide) {
-    final rows = _filteredRows;
-    if (byProvider) {
-      rows.sort((a, b) {
-        final n = a.item.provider.compareTo(b.item.provider);
-        return n == 0 ? a.status.index.compareTo(b.status.index) : n;
+
+  /// One entry per equipment (per provider and equipment when grouped by
+  /// provider), worst status first inside each entry.
+  List<EquipmentDeadlines> _groupRows(List<TrackedDeadline> rows) {
+    final map = <String, EquipmentDeadlines>{};
+    for (final r in rows) {
+      final provider = byProvider ? r.item.provider : '';
+      map
+          .putIfAbsent(
+            '$provider\u0000${r.equipment.id}',
+            () => EquipmentDeadlines(r.equipment, provider),
+          )
+          .rows
+          .add(r);
+    }
+    int due(TrackedDeadline a, TrackedDeadline b) =>
+        (effectiveDue(a.item) ?? DateTime(9999)).compareTo(
+          effectiveDue(b.item) ?? DateTime(9999),
+        );
+    for (final g in map.values) {
+      g.rows.sort((a, b) {
+        final n = a.status.index.compareTo(b.status.index);
+        return n == 0 ? due(a, b) : n;
       });
     }
+    final groups = map.values.toList();
+    groups.sort((a, b) {
+      if (byProvider) {
+        final p = a.provider.compareTo(b.provider);
+        if (p != 0) return p;
+      }
+      final first = a.rows.first, other = b.rows.first;
+      final value = switch (sortColumn) {
+        1 => a.equipment.name.compareTo(b.equipment.name),
+        2 => a.equipment.displayPlate.compareTo(b.equipment.displayPlate),
+        4 => due(
+          a.rows.reduce((x, y) => due(x, y) <= 0 ? x : y),
+          b.rows.reduce((x, y) => due(x, y) <= 0 ? x : y),
+        ),
+        _ => first.status.index.compareTo(other.status.index),
+      };
+      if (value != 0) return value;
+      final soonest = sortColumn == 0 ? due(first, other) : 0;
+      return soonest != 0
+          ? soonest
+          : a.equipment.name.compareTo(b.equipment.name);
+    });
+    return groups;
+  }
+
+  Widget _deadlines(BuildContext context, bool wide) {
+    final rows = _filteredRows;
+    final groups = _groupRows(rows);
     return LayoutBuilder(
       builder: (context, bounds) => Column(
         children: [
@@ -1194,8 +1285,29 @@ class _AppState extends State<EquipmentManagerApp> with WidgetsBindingObserver {
                       children: [
                         Expanded(
                           child: Text(
-                            '${rows.length} hạng mục${alertsOnly ? ' • Chỉ cảnh báo' : ''}${confirmOnly ? ' • Cần xác nhận' : ''}',
+                            '${groups.length} thiết bị • ${rows.length} hạng mục${alertsOnly ? ' • Chỉ cảnh báo' : ''}${confirmOnly ? ' • Cần xác nhận' : ''}',
                           ),
+                        ),
+                        PopupMenuButton<int>(
+                          tooltip: 'Sắp xếp',
+                          icon: const Icon(Icons.sort),
+                          initialValue: sortColumn,
+                          onSelected: (v) => setState(() => sortColumn = v),
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: 0,
+                              child: Text('Mức cảnh báo'),
+                            ),
+                            PopupMenuItem(
+                              value: 4,
+                              child: Text('Hạn gần nhất'),
+                            ),
+                            PopupMenuItem(
+                              value: 1,
+                              child: Text('Tên thiết bị'),
+                            ),
+                            PopupMenuItem(value: 2, child: Text('Biển số')),
+                          ],
                         ),
                         Flexible(
                           child: SwitchListTile(
@@ -1230,28 +1342,35 @@ class _AppState extends State<EquipmentManagerApp> with WidgetsBindingObserver {
                       'Thử đổi bộ lọc hoặc thêm hạng mục.',
                     ),
                   )
-                : wide
-                ? _deadlineTable(context, rows)
                 : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-                    itemCount: rows.length,
+                    padding: EdgeInsets.fromLTRB(
+                      wide ? 24 : 16,
+                      0,
+                      wide ? 24 : 16,
+                      80,
+                    ),
+                    itemCount: groups.length,
                     itemBuilder: (context, n) => Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (byProvider &&
                             (n == 0 ||
-                                rows[n - 1].item.provider !=
-                                    rows[n].item.provider))
+                                groups[n - 1].provider != groups[n].provider))
                           Padding(
                             padding: const EdgeInsets.all(8),
                             child: Text(
-                              rows[n].item.provider.isEmpty
+                              groups[n].provider.isEmpty
                                   ? 'Chưa chọn đơn vị'
-                                  : rows[n].item.provider,
+                                  : groups[n].provider,
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                           ),
-                        _deadlineCard(context, rows[n]),
+                        _deadlineGroup(
+                          context,
+                          groups[n],
+                          wide: wide,
+                          expanded: confirmOnly || groups.length == 1,
+                        ),
                       ],
                     ),
                   ),
@@ -1340,113 +1459,205 @@ class _AppState extends State<EquipmentManagerApp> with WidgetsBindingObserver {
       ),
     ),
   );
-  Widget _deadlineTable(BuildContext context, List<TrackedDeadline> rows) {
-    final sorted = [...rows];
-    if (!byProvider) {
-      sorted.sort((a, b) {
-        final value = switch (sortColumn) {
-          1 => a.equipment.name.compareTo(b.equipment.name),
-          2 => a.equipment.displayPlate.compareTo(b.equipment.displayPlate),
-          3 => a.item.title.compareTo(b.item.title),
-          4 => (effectiveDue(a.item) ?? DateTime(9999)).compareTo(
-            effectiveDue(b.item) ?? DateTime(9999),
-          ),
-          5 => a.item.provider.compareTo(b.item.provider),
-          _ => a.status.index.compareTo(b.status.index),
-        };
-        if (value == 0) {
-          return (effectiveDue(a.item) ?? DateTime(9999)).compareTo(
-            effectiveDue(b.item) ?? DateTime(9999),
-          );
-        }
-        return ascending ? value : -value;
-      });
+
+  /// One card per equipment; expanding it lists every (filtered) item.
+  Widget _deadlineGroup(
+    BuildContext context,
+    EquipmentDeadlines g, {
+    required bool wide,
+    required bool expanded,
+  }) {
+    final theme = Theme.of(context);
+    final e = g.equipment;
+    final worst = g.rows.first.status;
+    final counts = <DeadlineStatus, int>{};
+    for (final r in g.rows) {
+      counts[r.status] = (counts[r.status] ?? 0) + 1;
     }
-    DataColumn column(String text, int index) => DataColumn(
-      label: Text(text),
-      onSort: (n, asc) => setState(() {
-        sortColumn = index;
-        ascending = asc;
-      }),
-    );
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      child: PaginatedDataTable(
-        key: ValueKey(
-          '${search.text}-$group-$kind-$status-$provider-$management-${rows.length}-$byProvider-$confirmOnly',
+    final all = c.items.where((i) => i.equipmentId == e.id).length;
+    final hidden = all - g.rows.length;
+    final confirm = g.rows.where(_needsConfirm).length;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        key: PageStorageKey(
+          'deadlines-${g.provider}-${e.id}-$confirmOnly-$alertsOnly-$expanded',
         ),
-        header: const Text('Danh sách hạng mục'),
-        rowsPerPage: 10,
-        availableRowsPerPage: const [10],
-        showCheckboxColumn: false,
-        sortColumnIndex: sortColumn,
-        sortAscending: ascending,
-        columns: [
-          column('Trạng thái', 0),
-          column('Thiết bị', 1),
-          column('Biển số', 2),
-          column('Hạng mục', 3),
-          column('Hạn', 4),
-          column('Đơn vị thực hiện', 5),
-          const DataColumn(label: Text('Thao tác')),
-        ],
-        source: _TableSource(sorted.length, (index) {
-          final r = sorted[index];
-          return DataRow.byIndex(
-            index: index,
-            cells: [
-              DataCell(StatusChip(r.status)),
-              DataCell(
-                SizedBox(
-                  width: 200,
-                  child: Text(
-                    r.equipment.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+        initiallyExpanded: expanded,
+        shape: const Border(),
+        collapsedShape: const Border(),
+        tilePadding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 12, 8),
+        title: Text(e.name, style: theme.textTheme.titleMedium),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              StatusChip(worst),
+              Text(
+                [
+                  if (e.displayPlate.isNotEmpty) e.displayPlate,
+                  '${g.rows.length} hạng mục',
+                  for (final s in DeadlineStatus.values)
+                    if (counts[s] != null && s != worst)
+                      '${counts[s]} ${s.label.toLowerCase()}',
+                ].join(' • '),
+              ),
+              if (confirm > 0)
+                Chip(
+                  avatar: const Icon(Icons.fact_check_outlined, size: 18),
+                  label: Text('$confirm cần xác nhận'),
+                  visualDensity: VisualDensity.compact,
                 ),
-                onTap: () => _details(context, r.equipment),
+              if (wide)
+                Text(
+                  g.rows.take(3).map((r) => r.item.title).join(', ') +
+                      (g.rows.length > 3 ? '…' : ''),
+                  style: theme.textTheme.bodySmall,
+                ),
+            ],
+          ),
+        ),
+        children: [
+          for (final r in g.rows) ...[
+            const Divider(height: 1),
+            _itemRow(context, r, wide),
+          ],
+          const Divider(height: 1),
+          Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 4,
+            children: [
+              if (hidden > 0)
+                Text(
+                  '$hidden hạng mục khác bị ẩn bởi bộ lọc',
+                  style: theme.textTheme.bodySmall,
+                ),
+              TextButton(
+                onPressed: () => _details(context, e),
+                child: const Text('Xem thiết bị'),
               ),
-              DataCell(Text(r.equipment.displayPlate)),
-              DataCell(
-                SizedBox(width: 160, child: Text(r.item.title, maxLines: 2)),
+              if (_canEdit)
+                TextButton.icon(
+                  onPressed: () =>
+                      _run(() => itemForm(context, c, equipmentId: e.id)),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Thêm hạng mục'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _itemRow(BuildContext context, TrackedDeadline r, bool wide) {
+    final theme = Theme.of(context);
+    final info = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(r.item.title, style: theme.textTheme.titleSmall),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 12,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            StatusChip(r.status),
+            if (_needsConfirm(r))
+              const Chip(
+                avatar: Icon(Icons.fact_check_outlined, size: 18),
+                label: Text('Cần xác nhận'),
+                visualDensity: VisualDensity.compact,
               ),
-              DataCell(Text(_dueLabel(r.item))),
-              DataCell(Text(r.item.provider)),
-              DataCell(
-                Row(
-                  children: [
-                    if (_canEdit && _needsConfirm(r))
-                      IconButton(
-                        tooltip: 'Xác nhận dữ liệu',
-                        onPressed: () => _confirmData(context, r),
-                        icon: const Icon(Icons.fact_check_outlined),
-                      ),
-                    if (_canEdit && !r.item.isDone)
-                      IconButton(
-                        tooltip: 'Gia hạn / Hoàn thành',
-                        onPressed: () =>
-                            _run(() => completionForm(context, c, r.item)),
-                        icon: const Icon(Icons.task_alt),
-                      ),
-                    if (_canEdit)
-                      IconButton(
-                        tooltip: 'Sửa hạng mục',
-                        onPressed: () => _itemAction(context, r.item, 'edit'),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                    if (_canEdit)
-                      IconButton(
-                        tooltip: 'Xóa hạng mục',
-                        onPressed: () => _itemAction(context, r.item, 'delete'),
-                        icon: const Icon(Icons.delete_outline),
-                      ),
+            Text(_dueLabel(r.item)),
+            Text(r.item.kind.label, style: theme.textTheme.bodySmall),
+            if (r.item.provider.isNotEmpty) Text(r.item.provider),
+          ],
+        ),
+      ],
+    );
+    if (wide) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Expanded(child: info),
+            if (_canEdit && _needsConfirm(r))
+              IconButton(
+                tooltip: 'Xác nhận dữ liệu',
+                onPressed: () => _confirmData(context, r),
+                icon: const Icon(Icons.fact_check_outlined),
+              ),
+            if (_canEdit && !r.item.isDone)
+              IconButton(
+                tooltip: 'Gia hạn / Hoàn thành',
+                onPressed: () => _run(() => completionForm(context, c, r.item)),
+                icon: const Icon(Icons.task_alt),
+              ),
+            if (_canEdit)
+              IconButton(
+                tooltip: 'Sửa hạng mục',
+                onPressed: () => _itemAction(context, r.item, 'edit'),
+                icon: const Icon(Icons.edit_outlined),
+              ),
+            if (_canEdit)
+              IconButton(
+                tooltip: 'Xóa hạng mục',
+                onPressed: () => _itemAction(context, r.item, 'delete'),
+                icon: const Icon(Icons.delete_outline),
+              ),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: info),
+              if (_canEdit)
+                PopupMenuButton<String>(
+                  tooltip: 'Thao tác',
+                  onSelected: (v) => _itemAction(context, r.item, v),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Sửa hạng mục')),
+                    PopupMenuItem(value: 'delete', child: Text('Xóa hạng mục')),
                   ],
                 ),
-              ),
             ],
-          );
-        }),
+          ),
+          if (_canEdit && (_needsConfirm(r) || !r.item.isDone))
+            Wrap(
+              alignment: WrapAlignment.end,
+              children: [
+                if (_needsConfirm(r))
+                  TextButton.icon(
+                    onPressed: () => _confirmData(context, r),
+                    icon: const Icon(Icons.fact_check_outlined, size: 18),
+                    label: const Text('Xác nhận dữ liệu'),
+                  ),
+                if (!r.item.isDone)
+                  TextButton.icon(
+                    onPressed: () =>
+                        _run(() => completionForm(context, c, r.item)),
+                    icon: const Icon(Icons.task_alt, size: 18),
+                    label: const Text('Gia hạn / Hoàn thành'),
+                  ),
+              ],
+            )
+          else
+            const SizedBox(height: 8),
+        ],
       ),
     );
   }
@@ -1765,16 +1976,12 @@ class _AppState extends State<EquipmentManagerApp> with WidgetsBindingObserver {
   );
 }
 
-class _TableSource extends DataTableSource {
-  _TableSource(this.count, this.builder);
-  final int count;
-  final DataRow Function(int) builder;
-  @override
-  DataRow? getRow(int index) => index < count ? builder(index) : null;
-  @override
-  bool get isRowCountApproximate => false;
-  @override
-  int get rowCount => count;
-  @override
-  int get selectedRowCount => 0;
+/// The deadline items of one equipment shown as a single expandable entry.
+class EquipmentDeadlines {
+  EquipmentDeadlines(this.equipment, this.provider);
+  final Equipment equipment;
+
+  /// Set only when the list is grouped by provider.
+  final String provider;
+  final rows = <TrackedDeadline>[];
 }
